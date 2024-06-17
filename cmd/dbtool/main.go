@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,30 +9,49 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"regexp"
 	"sort"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"go.uber.org/zap"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 // Naming
 // path: file path to the SQL file
 // hash: checksum of the SQL file
 
+var (
+	Version = "dev"
+
+	re_FILENAME = regexp.MustCompile(`^[a-z0-9]+[a-z0-9-_]*.sql$`)
+)
+
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	logger := log.New(os.Stdout, "", log.LstdFlags)
-	logger.Println("Starting clbs-dbtool")
+	var zap_logger *zap.Logger
+	if _, ok := os.LookupEnv("KUBERNETES_SERVICE_HOST"); ok {
+		zap_logger, _ = zap.NewProduction()
+	} else {
+		zap_logger, _ = zap.NewDevelopment()
+	}
 
-	logger.Println("Loading config...")
+	defer func() { _ = zap_logger.Sync() }() // flushes buffer, if any
+	logger := zap_logger.Sugar()
+
+	logger.Info("Starting clbs-dbtool")
+
+	logger.Info("Loading config...")
 
 	cfg := &config{}
 	err := loadConfig(cfg)
@@ -39,11 +59,11 @@ func main() {
 		logger.Fatalf("Error loading config: %v", err)
 	}
 
-	logger.Printf("Looking for SQL files in %s\n", cfg.dir)
+	logger.Infof("Looking for SQL files in %s\n", cfg.dir)
 
 	var sqlFiles []sqlFile
 
-	err = readDir(&sqlFiles, cfg.dir)
+	err = readDir(&sqlFiles, cfg.dir, "")
 	if err != nil {
 		logger.Fatalf("Error reading dir: %v", err)
 	}
@@ -52,12 +72,12 @@ func main() {
 		return sqlFiles[i].path < sqlFiles[j].path
 	})
 
-	logger.Println("Found matching SQL files:")
+	logger.Info("Found matching SQL files:")
 	for _, f := range sqlFiles {
-		logger.Printf("  %s\n", f.path)
+		logger.Infof("  %s\n", f.path)
 	}
 
-	logger.Println("Connecting to database...")
+	logger.Info("Connecting to database...")
 
 	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer timeoutCancel()
@@ -77,30 +97,33 @@ func main() {
 		}
 	}()
 
-	logger.Println("Ensuring migration table exists...")
+	logger.Info("Ensuring migration table exists...")
 
 	err = ensureMigrationTableExists(*conn)
 	if err != nil {
 		logger.Fatalf("Error ensuring migration table exists: %v", err)
 	}
 
-	toApply, err := prepareListOfMigrations(*conn, sqlFiles, cfg.dir, cfg)
+	err = prepareListOfMigrations(*conn, sqlFiles, cfg.dir, cfg)
 	if err != nil {
 		logger.Fatalf("Error preparing list of migrations: %v", err)
 	}
 
-	logger.Println("Migrations to apply:")
-	for _, f := range toApply {
-		logger.Printf("  %s\n", f.path)
+	logger.Info("Migrations to apply:")
+	for _, f := range sqlFiles {
+		if !f.process {
+			continue
+		}
+		logger.Infof("  %s\n", f.path)
 	}
 
-	logger.Println("Applying migrations...")
-	err = applyMigrations(conn, toApply)
+	logger.Info("Applying migrations...")
+	err = applyMigrations(conn, cfg.dir, sqlFiles)
 	if err != nil {
 		logger.Fatalf("Error applying migrations: %v", err)
 	}
 
-	logger.Println("clbs-dbtool finished")
+	logger.Info("clbs-dbtool finished")
 }
 
 type config struct {
@@ -151,20 +174,25 @@ func loadConfig(cfg *config) error {
 }
 
 type sqlFile struct {
-	path string
-	hash string
+	path    string
+	hash    string
+	process bool
 }
 
-func readDir(sqlFiles *[]sqlFile, dir string) error {
-	entry, err := os.ReadDir(dir)
+// readDir reads the directory recursively and appends all SQL files to the sqlFiles slice
+func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
+	currentDir := path.Join(rootDir, subDir)
+	entry, err := os.ReadDir(currentDir)
 	if err != nil {
 		return err
 	}
 
 	for _, e := range entry {
+		entryPath := path.Join(subDir, e.Name())
+
 		// depth first
 		if e.IsDir() {
-			err = readDir(sqlFiles, dir+"/"+e.Name())
+			err := readDir(sqlFiles, rootDir, entryPath)
 			if err != nil {
 				return err
 			}
@@ -174,31 +202,28 @@ func readDir(sqlFiles *[]sqlFile, dir string) error {
 
 		// is file name invalid? -> continue
 		if !isValidFileName(e.Name()) {
-			continue
+			return fmt.Errorf("invalid file name '%s' in folder %s", e.Name(), subDir)
 		}
 
-		checksum, err := getFileChecksum(dir + "/" + e.Name())
+		checksum, err := getFileChecksum(entryPath)
 		if err != nil {
 			return err
 		}
 
-		*sqlFiles = append(*sqlFiles, sqlFile{path: dir + "/" + e.Name(), hash: checksum})
+		*sqlFiles = append(*sqlFiles, sqlFile{path: entryPath, hash: checksum,
+			process: false,
+		})
 	}
 
 	return nil
 }
 
+// isValidFileName checks if the file name is valid
 func isValidFileName(name string) bool {
-	pattern := "^[a-z0-9]+[a-z0-9-_]+.sql$"
-
-	matched, err := regexp.MatchString(pattern, name)
-	if err != nil {
-		return false
-	}
-
-	return matched
+	return re_FILENAME.MatchString(name)
 }
 
+// getFileChecksum returns the sha256 checksum of the file
 func getFileChecksum(path string) (string, error) {
 	h := sha256.New()
 
@@ -208,6 +233,10 @@ func getFileChecksum(path string) (string, error) {
 	}
 
 	_, err = io.Copy(h, f)
+	if err != nil {
+		return "", err
+	}
+
 	checksum := hex.EncodeToString(h.Sum(nil))
 
 	err = f.Close()
@@ -223,9 +252,8 @@ func ensureMigrationTableExists(conn pgx.Conn) error {
 CREATE SCHEMA IF NOT EXISTS clbs_dbtool;
 CREATE TABLE IF NOT EXISTS clbs_dbtool.migrations_v0 (
 	id BIGSERIAL PRIMARY KEY,
-	file VARCHAR(500) NOT NULL,
+	file_path VARCHAR(1024) NOT NULL,
 	file_checksum VARCHAR(64) NOT NULL, -- sha256 hash as hex string
-	root_dir VARCHAR(500) NOT NULL,
 	applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   clbs_dbtool_version VARCHAR(10) NOT NULL
 )`
@@ -237,16 +265,16 @@ CREATE TABLE IF NOT EXISTS clbs_dbtool.migrations_v0 (
 	return nil
 }
 
-func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, rootDir string, cfg *config) ([]sqlFile, error) {
+func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config) error {
 	type migration struct {
 		path string
 		hash string
 	}
 
 	//goland:noinspection SqlResolve
-	rows, err := conn.Query(context.Background(), "SELECT file, file_checksum, root_dir FROM clbs_dbtool.migrations_v0 ORDER BY file DESC")
+	rows, err := conn.Query(context.Background(), "SELECT file_path, file_checksum FROM clbs_dbtool.migrations_v0 ORDER BY id ASC")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer rows.Close()
 
@@ -255,13 +283,8 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, rootDir string, cfg
 		var m migration
 		err := rows.Scan(&m.path, &m.hash)
 		if err != nil {
-			return nil, err
+			return err
 		}
-
-		//if m.rootDir != rootDir {
-		//	return nil, fmt.Errorf("root dir mismatch for file %s: %s != %s", m.file, m.rootDir, rootDir)
-		//}
-
 		appliedMigrations = append(appliedMigrations, m)
 	}
 
@@ -272,21 +295,19 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, rootDir string, cfg
 		appliedMigrationsChan <- m
 	}
 
-	var toApply []sqlFile
-
 	toBeApplied := 0
 	for idx, f := range files {
 		select {
 		case m := <-appliedMigrationsChan:
 			if m.path != f.path {
-				return nil, fmt.Errorf("file %s has been moved since applied, %s", f.path, m.path)
+				return fmt.Errorf("file %s has been moved since applied, %s", f.path, m.path)
 			}
 			if m.hash != f.hash {
 				if cfg.skipFileValidation {
 					continue
 				}
 
-				return nil, fmt.Errorf("file %s has changed", f.path)
+				return fmt.Errorf("file %s has changed", f.path)
 			}
 
 			continue
@@ -297,31 +318,52 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, rootDir string, cfg
 			break
 		}
 
-		toApply = append(toApply, files[idx])
+		files[idx].process = true
 		toBeApplied++
 	}
 
-	return toApply, nil
+	return nil
 }
 
-func applyMigrations(conn *pgx.Conn, files []sqlFile) error {
+func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile) error {
 	for _, f := range files {
-		sql, err := os.ReadFile(f.path)
+		if !f.process {
+			continue
+		}
+
+		fd, err := os.Open(path.Join(rootDir, f.path))
 		if err != nil {
 			return err
 		}
 
-		_, err = conn.Exec(context.TODO(), string(sql))
+		sql, err := readText(fd)
+		if err != nil {
+			return err
+		}
+
+		_, err = conn.Exec(context.Background(), sql)
 		if err != nil {
 			return err
 		}
 
 		//goland:noinspection SqlResolve
-		_, err = conn.Exec(context.TODO(), "INSERT INTO clbs_dbtool.migrations_v0 (file, file_checksum, clbs_dbtool_version, root_dir) VALUES ($1, $2, $3, $4)", f.path, f.hash, "v0", "--todo:@lcapka")
+		_, err = conn.Exec(context.Background(), "INSERT INTO clbs_dbtool.migrations_v0 (file_path, file_checksum, clbs_dbtool_version) VALUES ($1, $2, $3)", f.path, f.hash, Version)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// readText reads the text from the reader and returns it as a string
+// it also handles the BOM (Byte Order Mark) at the beginning of the file
+func readText(reader io.Reader) (string, error) {
+	var transformer = unicode.BOMOverride(encoding.Nop.NewDecoder())
+	tmp := &bytes.Buffer{}
+	_, err := tmp.ReadFrom(transform.NewReader(reader, transformer))
+	if err != nil {
+		return "", err
+	}
+	return tmp.String(), nil
 }
