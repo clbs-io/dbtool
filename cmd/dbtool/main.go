@@ -104,7 +104,7 @@ func main() {
 		logger.Fatalf("Error ensuring migration table exists: %v", err)
 	}
 
-	err = prepareListOfMigrations(*conn, sqlFiles, cfg.dir, cfg)
+	err = prepareListOfMigrations(*conn, sqlFiles, cfg)
 	if err != nil {
 		logger.Fatalf("Error preparing list of migrations: %v", err)
 	}
