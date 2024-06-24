@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/cybroslabs/hes-1-dbtool/internal/bootstrap"
 	"io"
 	"net/url"
 	"os"
@@ -39,15 +40,8 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	var zap_logger *zap.Logger
-	if _, ok := os.LookupEnv("KUBERNETES_SERVICE_HOST"); ok {
-		zap_logger, _ = zap.NewProduction()
-	} else {
-		zap_logger, _ = zap.NewDevelopment()
-	}
-
-	defer func() { _ = zap_logger.Sync() }() // flushes buffer, if any
-	logger := zap_logger.Sugar()
+	logger := bootstrap.Logger()
+	defer func() { _ = logger.Sync() }()
 
 	logger.Info("Starting clbs-dbtool")
 
