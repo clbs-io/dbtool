@@ -56,16 +56,16 @@ func main() {
 	cfg := &config{}
 	err := loadConfig(cfg)
 	if err != nil {
-		logger.Fatalf("Error loading config: %v", err)
+		logger.Fatal("Error loading config", zap.Error(err))
 	}
 
-	logger.Infof("Looking for SQL files in %s\n", cfg.dir)
+	logger.Info("Looking for SQL files", zap.String("dir", cfg.dir))
 
 	var sqlFiles []sqlFile
 
 	err = readDir(&sqlFiles, cfg.dir, "")
 	if err != nil {
-		logger.Fatalf("Error reading dir: %v", err)
+		logger.Fatal("Error reading dir", zap.Error(err))
 	}
 
 	sort.Slice(sqlFiles, func(i, j int) bool {
@@ -74,7 +74,7 @@ func main() {
 
 	logger.Info("Found matching SQL files:")
 	for _, f := range sqlFiles {
-		logger.Infof("  %s\n", f.path)
+		logger.Info(fmt.Sprintf("  %s\n", f.path))
 	}
 
 	logger.Info("Connecting to database...")
@@ -85,15 +85,15 @@ func main() {
 	conn, err := pgx.Connect(timeoutCtx, cfg.databaseURL)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Fatalf("Error connecting to database: timeout")
+			logger.Fatal("Error connecting to database: timeout")
 		}
 
-		logger.Fatalf("Error connecting to database: %v", err)
+		logger.Fatal("Error connecting to database", zap.Error(err))
 	}
 	defer func() {
 		err = conn.Close(ctx)
 		if err != nil {
-			logger.Fatalf("Error closing connection: %v", err)
+			logger.Fatal("Error closing connection", zap.Error(err))
 		}
 	}()
 
@@ -101,12 +101,12 @@ func main() {
 
 	err = ensureMigrationTableExists(*conn)
 	if err != nil {
-		logger.Fatalf("Error ensuring migration table exists: %v", err)
+		logger.Fatal("Error ensuring migration table exists", zap.Error(err))
 	}
 
 	err = prepareListOfMigrations(*conn, sqlFiles, cfg)
 	if err != nil {
-		logger.Fatalf("Error preparing list of migrations: %v", err)
+		logger.Fatal("Error preparing list of migrations", zap.Error(err))
 	}
 
 	logger.Info("Migrations to apply:")
