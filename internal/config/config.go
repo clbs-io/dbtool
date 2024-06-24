@@ -55,32 +55,38 @@ func load() *Config {
 	return cfg
 }
 
+var (
+	ErrInvalidMigrationsDirectory = fmt.Errorf("migrations directory path")
+	ErrInvalidDatabaseURL         = fmt.Errorf("database url is invalid")
+	ErrInvalidSteps               = fmt.Errorf("invalid steps: must be positive integer")
+)
+
 func (cfg *Config) validate() error {
 	if cfg.dir == "" {
-		return fmt.Errorf("migrations-dir is required")
+		return ErrInvalidMigrationsDirectory
 	}
 
 	fileInfo, err := os.Stat(cfg.dir)
 	if err != nil {
-		return fmt.Errorf("dir %s does not exist", cfg.dir)
+		return ErrInvalidMigrationsDirectory
 	}
 
 	if !fileInfo.IsDir() {
-		return fmt.Errorf("dir %s is not a directory", cfg.dir)
-	}
-
-	if cfg.databaseURL == "" {
-		return fmt.Errorf("database-url is required")
+		return ErrInvalidMigrationsDirectory
 	}
 
 	// use url.ParseRequestURI() to validate the URL, not url.Parse(), since almost anything is valid for url.Parse()
 	parsedURL, err := url.ParseRequestURI(cfg.databaseURL)
 	if err != nil {
-		return fmt.Errorf("database-url is not a valid URL")
+		return ErrInvalidDatabaseURL
 	}
 
 	if parsedURL.Scheme != "postgres" {
-		return fmt.Errorf("database-url scheme must be 'postgres'")
+		return ErrInvalidDatabaseURL
+	}
+
+	if cfg.steps <= 0 && cfg.steps != defaultSteps {
+		return ErrInvalidSteps
 	}
 
 	return nil
