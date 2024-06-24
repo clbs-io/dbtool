@@ -66,7 +66,7 @@ func main() {
 
 	logger.Info("Found matching SQL files:")
 	for _, f := range sqlFiles {
-		logger.Info(fmt.Sprintf("  %s\n", f.path))
+		logger.Info(fmt.Sprintf("  %s", f.path))
 	}
 
 	logger.Info("Connecting to database...")
@@ -106,7 +106,7 @@ func main() {
 		if !f.process {
 			continue
 		}
-		logger.Infof("  %s\n", f.path)
+		logger.Info(fmt.Sprintf("  %s", f.path))
 	}
 
 	logger.Info("Applying migrations...")
