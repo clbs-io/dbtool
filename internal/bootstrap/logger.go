@@ -7,10 +7,17 @@ import (
 
 func Logger() *zap.Logger {
 	var zapLogger *zap.Logger
+	var err error
 	if _, ok := os.LookupEnv("KUBERNETES_SERVICE_HOST"); ok {
-		zapLogger, _ = zap.NewProduction()
+		zapLogger, err = zap.NewProduction()
+		if err != nil {
+			panic(err)
+		}
 	} else {
-		zapLogger, _ = zap.NewDevelopment()
+		zapLogger, err = zap.NewDevelopment()
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	return zapLogger
