@@ -1,5 +1,11 @@
 # dbtool
 
+## Installation
+
+```shell
+go install github.com/cybroslabs/hes-1-dbtool/cmd/dbtool@latest
+```
+
 ## Usage
 
 ```shell
