@@ -32,7 +32,7 @@ import (
 var (
 	Version = "dev"
 
-	re_FILENAME = regexp.MustCompile(`^[a-z0-9]+[a-z0-9-_]*.sql$`)
+	reFilename = regexp.MustCompile(`^[a-z0-9]+[a-z0-9-_]*.sql$`)
 )
 
 func main() {
@@ -165,7 +165,7 @@ func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
 
 // isValidFileName checks if the file name is valid
 func isValidFileName(name string) bool {
-	return re_FILENAME.MatchString(name)
+	return reFilename.MatchString(name)
 }
 
 // getFileChecksum returns the sha256 checksum of the file
