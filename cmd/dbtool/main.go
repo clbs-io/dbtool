@@ -114,7 +114,7 @@ func main() {
 	logger.Info("Applying migrations...")
 	err = applyMigrations(conn, cfg.dir, sqlFiles)
 	if err != nil {
-		logger.Fatalf("Error applying migrations: %v", err)
+		logger.Fatal("Error applying migrations", zap.Error(err))
 	}
 
 	logger.Info("clbs-dbtool finished")
