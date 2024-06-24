@@ -6,11 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"flag"
 	"fmt"
 	"github.com/cybroslabs/hes-1-dbtool/internal/bootstrap"
+	"github.com/cybroslabs/hes-1-dbtool/internal/config"
 	"io"
-	"net/url"
 	"os"
 	"os/signal"
 	"path"
@@ -47,17 +46,16 @@ func main() {
 
 	logger.Info("Loading config...")
 
-	cfg := &config{}
-	err := loadConfig(cfg)
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		logger.Fatal("Error loading config", zap.Error(err))
 	}
 
-	logger.Info("Looking for SQL files", zap.String("dir", cfg.dir))
+	logger.Info("Looking for SQL files", zap.String("dir", cfg.Dir()))
 
 	var sqlFiles []sqlFile
 
-	err = readDir(&sqlFiles, cfg.dir, "")
+	err = readDir(&sqlFiles, cfg.Dir(), "")
 	if err != nil {
 		logger.Fatal("Error reading dir", zap.Error(err))
 	}
@@ -76,7 +74,7 @@ func main() {
 	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer timeoutCancel()
 
-	conn, err := pgx.Connect(timeoutCtx, cfg.databaseURL)
+	conn, err := pgx.Connect(timeoutCtx, cfg.DatabaseURL())
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			logger.Fatal("Error connecting to database: timeout")
@@ -112,59 +110,12 @@ func main() {
 	}
 
 	logger.Info("Applying migrations...")
-	err = applyMigrations(conn, cfg.dir, sqlFiles)
+	err = applyMigrations(conn, cfg.Dir(), sqlFiles)
 	if err != nil {
 		logger.Fatal("Error applying migrations", zap.Error(err))
 	}
 
 	logger.Info("clbs-dbtool finished")
-}
-
-type config struct {
-	dir                string
-	databaseURL        string
-	steps              int
-	skipFileValidation bool
-}
-
-var defaultSteps = -1
-
-func loadConfig(cfg *config) error {
-	flag.StringVar(&cfg.dir, "migrations-dir", "", "Root directory where to look for SQL files")
-	flag.StringVar(&cfg.databaseURL, "database-url", "", "Database URL to connect to")
-	flag.IntVar(&cfg.steps, "steps", defaultSteps, "Number of steps to apply")
-	flag.BoolVar(&cfg.skipFileValidation, "skip-file-validation", false, "Skip file validation")
-
-	flag.Parse()
-
-	if cfg.dir == "" {
-		return fmt.Errorf("migrations-dir is required")
-	}
-
-	fileInfo, err := os.Stat(cfg.dir)
-	if err != nil {
-		return fmt.Errorf("dir %s does not exist", cfg.dir)
-	}
-
-	if !fileInfo.IsDir() {
-		return fmt.Errorf("dir %s is not a directory", cfg.dir)
-	}
-
-	if cfg.databaseURL == "" {
-		return fmt.Errorf("database-url is required")
-	}
-
-	// use url.ParseRequestURI() to validate the URL, not url.Parse(), since almost anything is valid for url.Parse()
-	parsedURL, err := url.ParseRequestURI(cfg.databaseURL)
-	if err != nil {
-		return fmt.Errorf("database-url is not a valid URL")
-	}
-
-	if parsedURL.Scheme != "postgres" {
-		return fmt.Errorf("database-url scheme must be 'postgres'")
-	}
-
-	return nil
 }
 
 type sqlFile struct {
@@ -259,7 +210,7 @@ CREATE TABLE IF NOT EXISTS clbs_dbtool.migrations_v0 (
 	return nil
 }
 
-func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config) error {
+func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config) error {
 	type migration struct {
 		path string
 		hash string
@@ -297,7 +248,7 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config) error 
 				return fmt.Errorf("file %s has been moved since applied, %s", f.path, m.path)
 			}
 			if m.hash != f.hash {
-				if cfg.skipFileValidation {
+				if cfg.SkipFileValidation() {
 					continue
 				}
 
@@ -308,7 +259,7 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config) error 
 		default:
 		}
 
-		if toBeApplied == cfg.steps {
+		if toBeApplied == cfg.Steps() {
 			break
 		}
 
