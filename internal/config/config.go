@@ -56,7 +56,7 @@ func load() *Config {
 }
 
 var (
-	ErrInvalidMigrationsDirectory = fmt.Errorf("migrations directory path")
+	ErrInvalidMigrationsDirectory = fmt.Errorf("invalid migrations directory path")
 	ErrInvalidDatabaseURL         = fmt.Errorf("database url is invalid")
 	ErrInvalidSteps               = fmt.Errorf("invalid steps: must be positive integer")
 )
