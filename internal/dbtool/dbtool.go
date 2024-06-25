@@ -47,7 +47,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 
 	logger.Info("Found matching SQL files:")
 	for _, f := range sqlFiles {
-		logger.Info(fmt.Sprintf("  %s", f.path))
+		logger.Info(fmt.Sprintf("- %s", f.path))
 	}
 
 	logger.Info("Connecting to database...")
@@ -87,7 +87,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		if !f.process {
 			continue
 		}
-		logger.Info(fmt.Sprintf("  %s", f.path))
+		logger.Info(fmt.Sprintf("- %s", f.path))
 	}
 
 	logger.Info("Applying migrations...")
