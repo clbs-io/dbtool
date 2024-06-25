@@ -131,12 +131,12 @@ func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
 			continue
 		}
 
-		checksum, err := getFileHash(path.Join(rootDir, entryPath))
+		fileHash, err := getFileHash(path.Join(rootDir, entryPath))
 		if err != nil {
 			return err
 		}
 
-		*sqlFiles = append(*sqlFiles, sqlFile{path: entryPath, hash: checksum,
+		*sqlFiles = append(*sqlFiles, sqlFile{path: entryPath, hash: fileHash,
 			process: false,
 		})
 	}
@@ -179,7 +179,7 @@ CREATE SCHEMA IF NOT EXISTS clbs_dbtool;
 CREATE TABLE IF NOT EXISTS clbs_dbtool.migrations_v0 (
 	id BIGSERIAL PRIMARY KEY,
 	file_path VARCHAR(1024) NOT NULL,
-	file_checksum VARCHAR(64) NOT NULL, -- sha256 hash as hex string
+	file_hash VARCHAR(64) NOT NULL, -- sha256 hash as hex string
 	applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   clbs_dbtool_version VARCHAR(10) NOT NULL
 )`
@@ -198,7 +198,7 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 	}
 
 	//goland:noinspection SqlResolve
-	rows, err := conn.Query(context.Background(), "SELECT file_path, file_checksum FROM clbs_dbtool.migrations_v0 ORDER BY id ASC")
+	rows, err := conn.Query(context.Background(), "SELECT file_path, file_hash FROM clbs_dbtool.migrations_v0 ORDER BY id ASC")
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile) error {
 		}
 
 		//goland:noinspection SqlResolve
-		_, err = conn.Exec(context.Background(), "INSERT INTO clbs_dbtool.migrations_v0 (file_path, file_checksum, clbs_dbtool_version) VALUES ($1, $2, $3)", f.path, f.hash, Version)
+		_, err = conn.Exec(context.Background(), "INSERT INTO clbs_dbtool.migrations_v0 (file_path, file_hash, clbs_dbtool_version) VALUES ($1, $2, $3)", f.path, f.hash, Version)
 		if err != nil {
 			return err
 		}
