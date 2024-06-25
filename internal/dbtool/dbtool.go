@@ -204,14 +204,9 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 	}
 	defer rows.Close()
 
-	appliedMigrations := make([]migration, 0)
-	for rows.Next() {
-		var m migration
-		err := rows.Scan(&m.path, &m.hash)
-		if err != nil {
-			return err
-		}
-		appliedMigrations = append(appliedMigrations, m)
+	appliedMigrations, collectErr := pgx.CollectRows(rows, pgx.RowToStructByName[migration])
+	if collectErr != nil {
+		return err
 	}
 
 	appliedMigrationsChan := make(chan migration, len(appliedMigrations))
