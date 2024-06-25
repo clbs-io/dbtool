@@ -22,7 +22,7 @@ import (
 )
 
 // Naming
-// path: file path to the SQL file
+// filePath: file filePath to the SQL file
 // hash: checksum of the SQL file
 
 var (
@@ -193,8 +193,8 @@ CREATE TABLE IF NOT EXISTS clbs_dbtool.migrations_v0 (
 
 func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config) error {
 	type migration struct {
-		path string
-		hash string
+		filePath string
+		fileHash string
 	}
 
 	//goland:noinspection SqlResolve
@@ -204,9 +204,16 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 	}
 	defer rows.Close()
 
-	appliedMigrations, collectErr := pgx.CollectRows(rows, pgx.RowToStructByName[migration])
-	if collectErr != nil {
-		return err
+	appliedMigrations := make([]migration, 0)
+
+	for rows.Next() {
+		var m migration
+		scanErr := rows.Scan(&m.filePath, &m.fileHash)
+		if scanErr != nil {
+			return scanErr
+		}
+
+		appliedMigrations = append(appliedMigrations, m)
 	}
 
 	appliedMigrationsChan := make(chan migration, len(appliedMigrations))
@@ -220,10 +227,11 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 	for idx, f := range files {
 		select {
 		case m := <-appliedMigrationsChan:
-			if m.path != f.path {
-				return fmt.Errorf("file %s has been moved since applied, %s", f.path, m.path)
+			if m.filePath != f.path {
+				return fmt.Errorf("file %s has been moved since applied, %s", f.path, m.filePath)
 			}
-			if m.hash != f.hash {
+
+			if m.fileHash != f.hash {
 				if cfg.SkipFileValidation() {
 					continue
 				}
@@ -231,6 +239,7 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 				return fmt.Errorf("file %s has changed", f.path)
 			}
 
+			// if migration has already been applied, continue
 			continue
 		default:
 		}
