@@ -84,7 +84,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 
 	logger.Info("Migrations to apply:")
 	for _, f := range sqlFiles {
-		if !f.process {
+		if !f.apply {
 			continue
 		}
 		logger.Info(fmt.Sprintf("- %s", f.path))
@@ -100,9 +100,9 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 }
 
 type sqlFile struct {
-	path    string
-	hash    string
-	process bool
+	path  string
+	hash  string
+	apply bool
 }
 
 // readDir reads the directory recursively and appends all SQL files to the sqlFiles slice
@@ -137,7 +137,7 @@ func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
 		}
 
 		*sqlFiles = append(*sqlFiles, sqlFile{path: entryPath, hash: fileHash,
-			process: false,
+			apply: false,
 		})
 	}
 
@@ -248,7 +248,7 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 			break
 		}
 
-		files[idx].process = true
+		files[idx].apply = true
 		toBeApplied++
 	}
 
@@ -257,7 +257,7 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 
 func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile) error {
 	for _, f := range files {
-		if !f.process {
+		if !f.apply {
 			continue
 		}
 
