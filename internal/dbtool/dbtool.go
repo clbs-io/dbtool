@@ -96,10 +96,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		logger.Debug(fmt.Sprintf("- %s", f.path))
 	}
 
-	applyErr := applyMigrations(conn, cfg.Dir(), sqlFiles, logger)
-	if applyErr != nil {
-		logger.Fatal("Error applying migrations", zap.Error(applyErr))
-	}
+	applyMigrations(conn, cfg.Dir(), sqlFiles, logger)
 
 	logger.Info("clbs-dbtool finished")
 }
@@ -260,35 +257,35 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 	return nil
 }
 
-func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile) error {
+func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile, logger *zap.Logger) {
 	for _, f := range files {
 		if !f.apply {
 			continue
 		}
 
+		logger.Info("Running migration...", zap.String("file", f.path))
+
 		fd, err := os.Open(path.Join(rootDir, f.path))
 		if err != nil {
-			return err
+			logger.Fatal("Could not open migration file", zap.Error(err))
 		}
 
 		sql, err := readText(fd)
 		if err != nil {
-			return err
+			logger.Fatal("Could not read text from migration file", zap.Error(err))
 		}
 
 		_, err = conn.Exec(context.Background(), sql)
 		if err != nil {
-			return err
+			logger.Fatal("Error while executing migration", zap.Error(err))
 		}
 
 		//goland:noinspection SqlResolve
 		_, err = conn.Exec(context.Background(), "INSERT INTO clbs_dbtool.migrations_v0 (file_path, file_hash, clbs_dbtool_version) VALUES ($1, $2, $3)", f.path, f.hash, Version)
 		if err != nil {
-			return err
+			logger.Fatal("Error while updating dbtool migrations table, this may lead to inconsistent database state", zap.Error(err))
 		}
 	}
-
-	return nil
 }
 
 // readText reads the text from the reader and returns it as a string
