@@ -128,7 +128,7 @@ func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
 
 		// is file name invalid? -> continue
 		if !isValidFileName(e.Name()) {
-			return fmt.Errorf("invalid file name '%s' in folder %s", e.Name(), subDir)
+			continue
 		}
 
 		checksum, err := getFileHash(path.Join(rootDir, entryPath))
