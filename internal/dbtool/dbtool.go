@@ -45,9 +45,9 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		return sqlFiles[i].path < sqlFiles[j].path
 	})
 
-	logger.Info("Found matching SQL files:")
+	logger.Debug("Found matching SQL files:")
 	for _, f := range sqlFiles {
-		logger.Info(fmt.Sprintf("- %s", f.path))
+		logger.Debug(fmt.Sprintf("- %s", f.path))
 	}
 
 	logger.Info("Connecting to database...")
@@ -82,18 +82,17 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		logger.Fatal("Error preparing list of migrations", zap.Error(err))
 	}
 
-	logger.Info("Migrations to apply:")
+	logger.Debug("Migrations to apply:")
 	for _, f := range sqlFiles {
 		if !f.apply {
 			continue
 		}
-		logger.Info(fmt.Sprintf("- %s", f.path))
+		logger.Debug(fmt.Sprintf("- %s", f.path))
 	}
 
-	logger.Info("Applying migrations...")
-	err = applyMigrations(conn, cfg.Dir(), sqlFiles)
-	if err != nil {
-		logger.Fatal("Error applying migrations", zap.Error(err))
+	applyErr := applyMigrations(conn, cfg.Dir(), sqlFiles, logger)
+	if applyErr != nil {
+		logger.Fatal("Error applying migrations", zap.Error(applyErr))
 	}
 
 	logger.Info("clbs-dbtool finished")
