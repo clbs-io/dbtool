@@ -131,7 +131,7 @@ func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
 			return fmt.Errorf("invalid file name '%s' in folder %s", e.Name(), subDir)
 		}
 
-		checksum, err := getFileChecksum(path.Join(rootDir, entryPath))
+		checksum, err := getFileHash(path.Join(rootDir, entryPath))
 		if err != nil {
 			return err
 		}
@@ -149,8 +149,8 @@ func isValidFileName(name string) bool {
 	return reFilename.MatchString(name)
 }
 
-// getFileChecksum returns the sha256 checksum of the file
-func getFileChecksum(path string) (string, error) {
+// getFileHash returns the sha256 checksum of the file
+func getFileHash(path string) (string, error) {
 	h := sha256.New()
 
 	f, err := os.Open(path)
