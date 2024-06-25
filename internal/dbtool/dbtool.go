@@ -70,6 +70,12 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		}
 	}()
 
+	logger.Info("Pinging the database...")
+	pingErr := conn.Ping(ctx)
+	if pingErr != nil {
+		logger.Fatal("Could not ping the database", zap.Error(pingErr))
+	}
+
 	logger.Info("Ensuring migration table exists...")
 
 	err = ensureMigrationTableExists(*conn)
