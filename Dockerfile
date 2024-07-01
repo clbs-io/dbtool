@@ -10,7 +10,7 @@ COPY . .
 
 RUN go build -o dbtool ./cmd/dbtool
 
-FROM alpine:3.19 AS runtime
+FROM alpine:3.20 AS runtime
 
 RUN apk add --no-cache ca-certificates
 
