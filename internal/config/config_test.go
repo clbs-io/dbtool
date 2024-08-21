@@ -1,13 +1,16 @@
 package config
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestConfig_DatabaseURL(t *testing.T) {
 	t.Run("DatabaseURL invalid scheme", func(t *testing.T) {
 		cfg := Config{
+			version:            "test",
+			appId:              "test",
 			databaseURL:        "mysql://user:password@localhost:5432/db",
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
@@ -20,6 +23,8 @@ func TestConfig_DatabaseURL(t *testing.T) {
 
 	t.Run("DatabaseURL invalid URL", func(t *testing.T) {
 		cfg := Config{
+			version:            "test",
+			appId:              "test",
 			databaseURL:        "invalid url",
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
@@ -32,6 +37,8 @@ func TestConfig_DatabaseURL(t *testing.T) {
 
 	t.Run("DatabaseURL is missing", func(t *testing.T) {
 		cfg := Config{
+			version:            "test",
+			appId:              "test",
 			databaseURL:        "",
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
@@ -46,6 +53,8 @@ func TestConfig_DatabaseURL(t *testing.T) {
 func TestConfig_Dir(t *testing.T) {
 	t.Run("Dir is invalid", func(t *testing.T) {
 		cfg := Config{
+			version:            "test",
+			appId:              "test",
 			databaseURL:        "postgres://user:password@localhost:5432/db",
 			dir:                "./some/invalid/path",
 			steps:              defaultSteps,
@@ -58,6 +67,8 @@ func TestConfig_Dir(t *testing.T) {
 
 	t.Run("Dir is file", func(t *testing.T) {
 		cfg := Config{
+			version:            "test",
+			appId:              "test",
 			databaseURL:        "postgres://user:password@localhost:5432/db",
 			dir:                "../../testing/samples/exists-but-is-file",
 			steps:              defaultSteps,
@@ -72,6 +83,8 @@ func TestConfig_Dir(t *testing.T) {
 
 func TestConfig_Valid(t *testing.T) {
 	cfg := Config{
+		version:            "test",
+		appId:              "test",
 		databaseURL:        "postgres://user:password@localhost:5432/db",
 		dir:                "../../testing/samples/valid",
 		steps:              defaultSteps,
@@ -84,6 +97,8 @@ func TestConfig_Valid(t *testing.T) {
 
 func TestConfig_Steps(t *testing.T) {
 	cfg := Config{
+		version:            "test",
+		appId:              "test",
 		databaseURL:        "postgres://user:password@localhost:3306/db",
 		dir:                "../../testing/samples/valid",
 		steps:              1,

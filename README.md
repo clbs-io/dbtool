@@ -12,7 +12,7 @@ go install github.com/cybroslabs/hes-1-dbtool/cmd/dbtool@latest
 ### Docker
 
 ```shell
-docker run -v migrations:/migrations registry.clbs.io/dbtool --migrations-dir=/migrations --database-url=postgres://user:pass@example.com:5432/db
+docker run -v migrations:/migrations registry.clbs.io/dbtool --app-id=your-app --migrations-dir=/migrations --database-url=postgres://user:pass@example.com:5432/db
 ```
 
 ## Usage
@@ -73,7 +73,7 @@ CMD [ "ash" ]
           containers:
           - name: dbtool
             image: your/migrations-image
-            command: ["dbtool",  "--migrations-dir=./your/migrations/dir", "--database-url=postgres://user:pass@host:5432/db"]
+            command: ["dbtool", "--app-id=your-app", "--migrations-dir=./your/migrations/dir", "--database-url=postgres://user:pass@host:5432/db"]
           restartPolicy: Never
     ```
 
