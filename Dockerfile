@@ -1,4 +1,7 @@
-FROM golang:1.22-alpine AS builder
+# syntax=docker/dockerfile:1
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
+ARG TARGETOS TARGETARCH
+ARG VERSION=v0.0.0
 
 WORKDIR /build
 
@@ -8,11 +11,11 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o dbtool ./cmd/dbtool
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -a -o dbtool -ldflags="-X 'main.Version=$VERSION'" ./cmd/dbtool
 
-FROM alpine:3.20 AS runtime
+FROM alpine:latest AS runtime
 
-RUN apk add --no-cache ca-certificates
+RUN apk --no-cache add ca-certificates
 
 COPY --from=builder /build/dbtool /usr/local/bin/dbtool
 

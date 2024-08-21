@@ -14,6 +14,9 @@ const (
 // Config fields are not exported, making Config immutable
 // Use getters to read a value from the Config struct
 type Config struct {
+	version string
+	appId   string
+
 	dir                string
 	databaseURL        string
 	steps              int
@@ -36,7 +39,15 @@ func (cfg *Config) SkipFileValidation() bool {
 	return cfg.skipFileValidation
 }
 
-func LoadConfig() (*Config, error) {
+func (cfg *Config) Version() string {
+	return cfg.version
+}
+
+func (cfg *Config) AppId() string {
+	return cfg.appId
+}
+
+func LoadConfig(version string) (*Config, error) {
 	cfg := load()
 	err := cfg.validate()
 	return cfg, err
@@ -45,6 +56,7 @@ func LoadConfig() (*Config, error) {
 func load() *Config {
 	cfg := &Config{}
 
+	flag.StringVar(&cfg.appId, "app-id", "", "Application ID")
 	flag.StringVar(&cfg.dir, "migrations-dir", "", "Root directory where to look for SQL files")
 	flag.StringVar(&cfg.databaseURL, "database-url", "", "Database URL to connect to")
 	flag.IntVar(&cfg.steps, "steps", defaultSteps, "Number of steps to apply")
@@ -59,6 +71,7 @@ var (
 	ErrInvalidMigrationsDirectory = fmt.Errorf("invalid migrations directory path")
 	ErrInvalidDatabaseURL         = fmt.Errorf("database url is invalid")
 	ErrInvalidSteps               = fmt.Errorf("invalid steps: must be positive integer")
+	ErrInvalidAppId               = fmt.Errorf("app-id is required")
 )
 
 func (cfg *Config) validate() error {
@@ -87,6 +100,10 @@ func (cfg *Config) validate() error {
 
 	if cfg.steps <= 0 && cfg.steps != defaultSteps {
 		return ErrInvalidSteps
+	}
+
+	if cfg.appId == "" {
+		return ErrInvalidAppId
 	}
 
 	return nil

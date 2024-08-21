@@ -7,18 +7,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/cybroslabs/hes-1-dbtool/internal/config"
-	"github.com/jackc/pgx/v5"
-	"go.uber.org/zap"
-	"golang.org/x/text/encoding"
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 	"io"
 	"os"
 	"path"
 	"regexp"
 	"sort"
 	"time"
+
+	"github.com/cybroslabs/hes-1-dbtool/internal/config"
+	"github.com/jackc/pgx/v5"
+	"go.uber.org/zap"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 // Naming
@@ -26,8 +27,6 @@ import (
 // hash: checksum of the SQL file
 
 var (
-	Version = "dev"
-
 	reFilename = regexp.MustCompile(`^[a-z0-9]+[a-z0-9-_]*.sql$`)
 )
 
@@ -96,7 +95,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		logger.Debug(fmt.Sprintf("- %s", f.path))
 	}
 
-	applyMigrations(conn, cfg.Dir(), sqlFiles, logger)
+	applyMigrations(conn, cfg.Dir(), sqlFiles, cfg, logger)
 
 	logger.Info("clbs-dbtool finished")
 }
@@ -177,14 +176,15 @@ func getFileHash(path string) (string, error) {
 
 func ensureMigrationTableExists(conn pgx.Conn) error {
 	const createTableSQL = `
-CREATE SCHEMA IF NOT EXISTS clbs_dbtool;
-CREATE TABLE IF NOT EXISTS clbs_dbtool.migrations_v0 (
-	id BIGSERIAL PRIMARY KEY,
-	file_path VARCHAR(1024) NOT NULL,
-	file_hash VARCHAR(64) NOT NULL, -- sha256 hash as hex string
-	applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  clbs_dbtool_version VARCHAR(10) NOT NULL
-)`
+		CREATE TABLE IF NOT EXISTS clbs_dbtool_migrations (
+			id BIGSERIAL PRIMARY KEY,
+			app_id VARCHAR(64) NOT NULL,
+			file_path VARCHAR(1024) NOT NULL,
+			file_hash VARCHAR(64) NOT NULL, -- sha256 hash as hex string
+			applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			clbs_dbtool_version VARCHAR(10) NOT NULL
+		)`
+
 	_, err := conn.Exec(context.Background(), createTableSQL)
 	if err != nil {
 		return err
@@ -200,7 +200,7 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 	}
 
 	//goland:noinspection SqlResolve
-	rows, err := conn.Query(context.Background(), "SELECT file_path, file_hash FROM clbs_dbtool.migrations_v0 ORDER BY id ASC")
+	rows, err := conn.Query(context.Background(), "SELECT file_path, file_hash FROM clbs_dbtool_migrations WHERE app_id = $1 ORDER BY id ASC", cfg.AppId())
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 	return nil
 }
 
-func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile, logger *zap.Logger) {
+func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile, cfg *config.Config, logger *zap.Logger) {
 	for _, f := range files {
 		if !f.apply {
 			continue
@@ -281,7 +281,7 @@ func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile, logger *za
 		}
 
 		//goland:noinspection SqlResolve
-		_, err = conn.Exec(context.Background(), "INSERT INTO clbs_dbtool.migrations_v0 (file_path, file_hash, clbs_dbtool_version) VALUES ($1, $2, $3)", f.path, f.hash, Version)
+		_, err = conn.Exec(context.Background(), "INSERT INTO clbs_dbtool_migrations (file_path, file_hash, app_id, clbs_dbtool_version) VALUES ($1, $2, $3, $4)", f.path, f.hash, cfg.AppId(), cfg.Version())
 		if err != nil {
 			logger.Fatal("Error while updating dbtool migrations table, this may lead to inconsistent database state", zap.Error(err))
 		}
