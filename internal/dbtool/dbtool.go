@@ -182,9 +182,9 @@ func getFileHash(path string) (string, error) {
 }
 
 func ensureSchemaExists(conn pgx.Conn, schema string) error {
-	const createSchemaSQL = `CREATE SCHEMA IF NOT EXISTS $1`
+	createSchemaSQL := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema)
 
-	_, err := conn.Exec(context.Background(), createSchemaSQL, schema)
+	_, err := conn.Exec(context.Background(), createSchemaSQL)
 	if err != nil {
 		return err
 	}
