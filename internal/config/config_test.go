@@ -15,6 +15,7 @@ func TestConfig_DatabaseURL(t *testing.T) {
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
 			skipFileValidation: false,
+			databaseSchema:     "public",
 		}
 
 		err := cfg.validate()
@@ -29,6 +30,7 @@ func TestConfig_DatabaseURL(t *testing.T) {
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
 			skipFileValidation: false,
+			databaseSchema:     "public",
 		}
 
 		err := cfg.validate()
@@ -43,6 +45,7 @@ func TestConfig_DatabaseURL(t *testing.T) {
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
 			skipFileValidation: false,
+			databaseSchema:     "public",
 		}
 
 		err := cfg.validate()
@@ -59,6 +62,7 @@ func TestConfig_Dir(t *testing.T) {
 			dir:                "./some/invalid/path",
 			steps:              defaultSteps,
 			skipFileValidation: false,
+			databaseSchema:     "public",
 		}
 
 		err := cfg.validate()
@@ -73,6 +77,7 @@ func TestConfig_Dir(t *testing.T) {
 			dir:                "../../testing/samples/exists-but-is-file",
 			steps:              defaultSteps,
 			skipFileValidation: false,
+			databaseSchema:     "public",
 		}
 
 		err := cfg.validate()
@@ -89,6 +94,7 @@ func TestConfig_Valid(t *testing.T) {
 		dir:                "../../testing/samples/valid",
 		steps:              defaultSteps,
 		skipFileValidation: false,
+		databaseSchema:     "public",
 	}
 
 	err := cfg.validate()
@@ -103,6 +109,7 @@ func TestConfig_Steps(t *testing.T) {
 		dir:                "../../testing/samples/valid",
 		steps:              1,
 		skipFileValidation: false,
+		databaseSchema:     "public",
 	}
 
 	err := cfg.validate()

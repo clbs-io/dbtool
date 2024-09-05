@@ -19,6 +19,7 @@ type Config struct {
 
 	dir                string
 	databaseURL        string
+	databaseSchema     string
 	steps              int
 	skipFileValidation bool
 }
@@ -47,6 +48,10 @@ func (cfg *Config) AppId() string {
 	return cfg.appId
 }
 
+func (cfg *Config) DatabaseSchema() string {
+	return cfg.databaseSchema
+}
+
 func LoadConfig(version string) (*Config, error) {
 	cfg := load()
 	err := cfg.validate()
@@ -61,6 +66,7 @@ func load() *Config {
 	flag.StringVar(&cfg.databaseURL, "database-url", "", "Database URL to connect to")
 	flag.IntVar(&cfg.steps, "steps", defaultSteps, "Number of steps to apply")
 	flag.BoolVar(&cfg.skipFileValidation, "skip-file-validation", false, "Skip file validation")
+	flag.StringVar(&cfg.databaseSchema, "database-schema", "public", "Database schema to use")
 
 	flag.Parse()
 
