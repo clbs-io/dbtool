@@ -13,7 +13,7 @@ COPY . .
 
 RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -a -o dbtool -ldflags="-X 'main.Version=$VERSION'" ./cmd/dbtool
 
-FROM alpine:latest AS runtime
+FROM alpine:latest AS dbtool
 
 RUN apk --no-cache add ca-certificates
 
