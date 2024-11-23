@@ -4,7 +4,7 @@ go 1.22.5
 
 require (
 	github.com/jackc/pgx/v5 v5.7.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/text v0.21.0
 )
