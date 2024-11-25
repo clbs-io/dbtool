@@ -54,6 +54,7 @@ func (cfg *Config) DatabaseSchema() string {
 
 func LoadConfig(version string) (*Config, error) {
 	cfg := load()
+	cfg.version = version
 	err := cfg.validate()
 	return cfg, err
 }
