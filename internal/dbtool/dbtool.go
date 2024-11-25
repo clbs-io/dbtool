@@ -75,21 +75,14 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		logger.Fatal("Could not ping the database", zap.Error(pingErr))
 	}
 
-	logger.Info("Ensuring schema exists...")
-
-	err = ensureSchemaExists(*conn, cfg.DatabaseSchema())
-	if err != nil {
-		logger.Fatal("Error ensuring schema exists", zap.Error(err))
-	}
-
 	logger.Info("Ensuring migration table exists...")
 
-	err = ensureMigrationTableExists(*conn, cfg.DatabaseSchema())
+	err = ensureMigrationTableExists(*conn)
 	if err != nil {
 		logger.Fatal("Error ensuring migration table exists", zap.Error(err))
 	}
 
-	err = prepareListOfMigrations(*conn, cfg.DatabaseSchema(), sqlFiles, cfg)
+	err = prepareListOfMigrations(*conn, sqlFiles, cfg)
 	if err != nil {
 		logger.Fatal("Error preparing list of migrations", zap.Error(err))
 	}
@@ -102,7 +95,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		logger.Debug(fmt.Sprintf("- %s", f.path))
 	}
 
-	applyMigrations(conn, cfg.DatabaseSchema(), cfg.Dir(), sqlFiles, cfg, logger)
+	applyMigrations(conn, cfg.Dir(), sqlFiles, cfg, logger)
 
 	logger.Info("clbs-dbtool finished")
 }
@@ -181,29 +174,16 @@ func getFileHash(path string) (string, error) {
 	return checksum, nil
 }
 
-func ensureSchemaExists(conn pgx.Conn, schema string) error {
-	createSchemaSQL := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema)
-
-	_, err := conn.Exec(context.Background(), createSchemaSQL)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func ensureMigrationTableExists(conn pgx.Conn, schema string) error {
-	createTableSQL := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.clbs_dbtool_migrations (
+func ensureMigrationTableExists(conn pgx.Conn) error {
+	createTableSQL := `
+		CREATE TABLE IF NOT EXISTS public.clbs_dbtool_migrations (
 			id BIGSERIAL PRIMARY KEY,
 			app_id VARCHAR(64) NOT NULL,
 			file_path VARCHAR(1024) NOT NULL,
 			file_hash VARCHAR(64) NOT NULL, -- sha256 hash as hex string
 			applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			clbs_dbtool_version VARCHAR(10) NOT NULL
-		)`,
-		schema,
-	)
+		)`
 
 	_, err := conn.Exec(context.Background(), createTableSQL)
 	if err != nil {
@@ -213,14 +193,14 @@ func ensureMigrationTableExists(conn pgx.Conn, schema string) error {
 	return nil
 }
 
-func prepareListOfMigrations(conn pgx.Conn, schema string, files []sqlFile, cfg *config.Config) error {
+func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config) error {
 	type migration struct {
 		filePath string
 		fileHash string
 	}
 
 	//goland:noinspection SqlResolve
-	selectMigrationsSQL := fmt.Sprintf("SELECT file_path, file_hash FROM %s.clbs_dbtool_migrations WHERE app_id = $1 ORDER BY id ASC", schema)
+	selectMigrationsSQL := `SELECT file_path, file_hash FROM public.clbs_dbtool_migrations WHERE app_id = $1 ORDER BY id ASC`
 
 	rows, err := conn.Query(context.Background(), selectMigrationsSQL, cfg.AppId())
 	if err != nil {
@@ -279,9 +259,9 @@ func prepareListOfMigrations(conn pgx.Conn, schema string, files []sqlFile, cfg 
 	return nil
 }
 
-func applyMigrations(conn *pgx.Conn, schema string, rootDir string, files []sqlFile, cfg *config.Config, logger *zap.Logger) {
+func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile, cfg *config.Config, logger *zap.Logger) {
 	//goland:noinspection SqlResolve
-	insertExecutedMigrationSQL := fmt.Sprintf("INSERT INTO %s.clbs_dbtool_migrations (file_path, file_hash, app_id, clbs_dbtool_version) VALUES ($1, $2, $3, $4)", schema)
+	insertExecutedMigrationSQL := `INSERT INTO public.clbs_dbtool_migrations (file_path, file_hash, app_id, clbs_dbtool_version) VALUES ($1, $2, $3, $4)`
 
 	for _, f := range files {
 		if !f.apply {
