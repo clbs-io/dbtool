@@ -3,8 +3,9 @@ package config
 import (
 	"flag"
 	"fmt"
-	"net/url"
 	"os"
+
+	"github.com/jackc/pgx/v5"
 )
 
 const (
@@ -89,13 +90,12 @@ func (cfg *Config) validate() error {
 		return ErrInvalidMigrationsDirectory
 	}
 
-	// use url.ParseRequestURI() to validate the URL, not url.Parse(), since almost anything is valid for url.Parse()
-	parsedURL, err := url.ParseRequestURI(cfg.databaseURL)
-	if err != nil {
+	if cfg.databaseURL == "" {
 		return ErrInvalidDatabaseURL
 	}
 
-	if parsedURL.Scheme != "postgres" {
+	_, err = pgx.ParseConfig(cfg.databaseURL)
+	if err != nil {
 		return ErrInvalidDatabaseURL
 	}
 
