@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -18,10 +19,11 @@ type Config struct {
 	version string
 	appId   string
 
-	dir                string
-	connectionString   string
-	steps              int
-	skipFileValidation bool
+	dir                    string
+	connectionString       string
+	connectionStringFormat string
+	steps                  int
+	skipFileValidation     bool
 }
 
 func (cfg *Config) Dir() string {
@@ -61,12 +63,56 @@ func load() *Config {
 	flag.StringVar(&cfg.appId, "app-id", "", "Application ID")
 	flag.StringVar(&cfg.dir, "migrations-dir", "", "Root directory where to look for SQL files")
 	flag.StringVar(&cfg.connectionString, "connection-string", "", "Database URL to connect to")
+	flag.StringVar(&cfg.connectionStringFormat, "connection-string-format", "default", "Connection string format (default, ado)")
 	flag.IntVar(&cfg.steps, "steps", defaultSteps, "Number of steps to apply")
 	flag.BoolVar(&cfg.skipFileValidation, "skip-file-validation", false, "Skip file validation")
 
 	flag.Parse()
 
+	if strings.ToLower(cfg.connectionStringFormat) == "ado" {
+		tmp, _ := connectionStringFromADO(cfg.connectionString)
+		cfg.connectionString = tmp
+	}
+
 	return cfg
+}
+
+func connectionStringFromADO(connectionString string) (string, bool) {
+	// Split the string by semicolons
+	entries := strings.Split(connectionString, ";")
+	var sb strings.Builder
+	for _, entry := range entries {
+		// Skip empty entries (in case of trailing or multiple semicolons)
+		if len(strings.TrimSpace(entry)) == 0 {
+			continue
+		}
+
+		// Split key-value pairs
+		parts := strings.SplitN(entry, "=", 2)
+		if len(parts) != 2 {
+			return "", false
+		}
+
+		key := strings.ToLower(strings.TrimSpace(parts[0]))
+		if key == "database" {
+			key = "dbname"
+		} else if key == "user id" {
+			key = "user"
+		} else {
+			key = strings.ReplaceAll(key, " ", "")
+		}
+		value := strings.TrimSpace(parts[1])
+		if strings.Contains(value, " ") {
+			value = fmt.Sprintf("'%s'", value)
+		}
+
+		sb.WriteString(key)
+		sb.WriteString("=")
+		sb.WriteString(value)
+		sb.WriteString(" ")
+	}
+
+	return strings.TrimSpace(sb.String()), true
 }
 
 var (
