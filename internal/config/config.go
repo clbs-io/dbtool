@@ -19,7 +19,7 @@ type Config struct {
 	appId   string
 
 	dir                string
-	databaseURL        string
+	connectionString   string
 	steps              int
 	skipFileValidation bool
 }
@@ -28,8 +28,8 @@ func (cfg *Config) Dir() string {
 	return cfg.dir
 }
 
-func (cfg *Config) DatabaseURL() string {
-	return cfg.databaseURL
+func (cfg *Config) ConnectionString() string {
+	return cfg.connectionString
 }
 
 func (cfg *Config) Steps() int {
@@ -60,7 +60,7 @@ func load() *Config {
 
 	flag.StringVar(&cfg.appId, "app-id", "", "Application ID")
 	flag.StringVar(&cfg.dir, "migrations-dir", "", "Root directory where to look for SQL files")
-	flag.StringVar(&cfg.databaseURL, "database-url", "", "Database URL to connect to")
+	flag.StringVar(&cfg.connectionString, "connection-string", "", "Database URL to connect to")
 	flag.IntVar(&cfg.steps, "steps", defaultSteps, "Number of steps to apply")
 	flag.BoolVar(&cfg.skipFileValidation, "skip-file-validation", false, "Skip file validation")
 
@@ -71,7 +71,7 @@ func load() *Config {
 
 var (
 	ErrInvalidMigrationsDirectory = fmt.Errorf("invalid migrations directory path")
-	ErrInvalidDatabaseURL         = fmt.Errorf("database url is invalid")
+	ErrInvalidConnectionString    = fmt.Errorf("connection string is invalid")
 	ErrInvalidSteps               = fmt.Errorf("invalid steps: must be positive integer")
 	ErrInvalidAppId               = fmt.Errorf("app-id is required")
 )
@@ -90,13 +90,13 @@ func (cfg *Config) validate() error {
 		return ErrInvalidMigrationsDirectory
 	}
 
-	if cfg.databaseURL == "" {
-		return ErrInvalidDatabaseURL
+	if cfg.connectionString == "" {
+		return ErrInvalidConnectionString
 	}
 
-	_, err = pgx.ParseConfig(cfg.databaseURL)
+	_, err = pgx.ParseConfig(cfg.connectionString)
 	if err != nil {
-		return ErrInvalidDatabaseURL
+		return ErrInvalidConnectionString
 	}
 
 	if cfg.steps <= 0 && cfg.steps != defaultSteps {

@@ -6,47 +6,61 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConfig_DatabaseURL(t *testing.T) {
-	t.Run("DatabaseURL invalid scheme", func(t *testing.T) {
+func TestConfig_ConnectionString(t *testing.T) {
+	t.Run("ConnectionString invalid scheme", func(t *testing.T) {
 		cfg := Config{
 			version:            "test",
 			appId:              "test",
-			databaseURL:        "mysql://user:password@localhost:5432/db",
+			connectionString:   "mysql://user:password@localhost:5432/db",
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
 			skipFileValidation: false,
 		}
 
 		err := cfg.validate()
-		assert.ErrorIs(t, err, ErrInvalidDatabaseURL)
+		assert.ErrorIs(t, err, ErrInvalidConnectionString)
 	})
 
-	t.Run("DatabaseURL invalid URL", func(t *testing.T) {
+	t.Run("ConnectionString invalid URL", func(t *testing.T) {
 		cfg := Config{
 			version:            "test",
 			appId:              "test",
-			databaseURL:        "invalid url",
+			connectionString:   "invalid url",
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
 			skipFileValidation: false,
 		}
 
 		err := cfg.validate()
-		assert.ErrorIs(t, err, ErrInvalidDatabaseURL)
+		assert.ErrorIs(t, err, ErrInvalidConnectionString)
 	})
 
-	t.Run("DatabaseURL is missing", func(t *testing.T) {
+	t.Run("ConnectionString key value", func(t *testing.T) {
 		cfg := Config{
 			version:            "test",
 			appId:              "test",
-			databaseURL:        "",
+			connectionString:   "User ID=uid;Password=pass@word;Host=url.example.com;Port=5432;Database=app;SSL Mode=allow",
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
 			skipFileValidation: false,
 		}
 
 		err := cfg.validate()
-		assert.ErrorIs(t, err, ErrInvalidDatabaseURL)
+		assert.NoError(t, err)
+	})
+
+	t.Run("ConnectionString is missing", func(t *testing.T) {
+		cfg := Config{
+			version:            "test",
+			appId:              "test",
+			connectionString:   "",
+			dir:                "../../testing/samples/valid",
+			steps:              defaultSteps,
+			skipFileValidation: false,
+		}
+
+		err := cfg.validate()
+		assert.ErrorIs(t, err, ErrInvalidConnectionString)
 	})
 }
 
@@ -55,7 +69,7 @@ func TestConfig_Dir(t *testing.T) {
 		cfg := Config{
 			version:            "test",
 			appId:              "test",
-			databaseURL:        "postgres://user:password@localhost:5432/db",
+			connectionString:   "postgres://user:password@localhost:5432/db",
 			dir:                "./some/invalid/path",
 			steps:              defaultSteps,
 			skipFileValidation: false,
@@ -69,7 +83,7 @@ func TestConfig_Dir(t *testing.T) {
 		cfg := Config{
 			version:            "test",
 			appId:              "test",
-			databaseURL:        "postgres://user:password@localhost:5432/db",
+			connectionString:   "postgres://user:password@localhost:5432/db",
 			dir:                "../../testing/samples/exists-but-is-file",
 			steps:              defaultSteps,
 			skipFileValidation: false,
@@ -85,7 +99,7 @@ func TestConfig_Valid(t *testing.T) {
 	cfg := Config{
 		version:            "test",
 		appId:              "test",
-		databaseURL:        "postgres://user:password@localhost:5432/db",
+		connectionString:   "postgres://user:password@localhost:5432/db",
 		dir:                "../../testing/samples/valid",
 		steps:              defaultSteps,
 		skipFileValidation: false,
@@ -99,7 +113,7 @@ func TestConfig_Steps(t *testing.T) {
 	cfg := Config{
 		version:            "test",
 		appId:              "test",
-		databaseURL:        "postgres://user:password@localhost:3306/db",
+		connectionString:   "postgres://user:password@localhost:3306/db",
 		dir:                "../../testing/samples/valid",
 		steps:              1,
 		skipFileValidation: false,
