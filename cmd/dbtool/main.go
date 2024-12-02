@@ -6,9 +6,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cybroslabs/hes-1-dbtool/internal/bootstrap"
-	"github.com/cybroslabs/hes-1-dbtool/internal/config"
-	"github.com/cybroslabs/hes-1-dbtool/internal/dbtool"
+	"github.com/clbs-io/dbtool/internal/bootstrap"
+	"github.com/clbs-io/dbtool/internal/config"
+	"github.com/clbs-io/dbtool/internal/dbtool"
 	"go.uber.org/zap"
 )
 

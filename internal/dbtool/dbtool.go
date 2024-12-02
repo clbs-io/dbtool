@@ -14,7 +14,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/cybroslabs/hes-1-dbtool/internal/config"
+	"github.com/clbs-io/dbtool/internal/config"
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 	"golang.org/x/text/encoding"

@@ -1,4 +1,4 @@
-module github.com/cybroslabs/hes-1-dbtool
+module github.com/clbs-io/dbtool
 
 go 1.22.5
 

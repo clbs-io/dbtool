@@ -1,4 +1,4 @@
-# dbtool
+# DB Tool
 
 ## Installation
 
@@ -6,13 +6,13 @@
 
 ```shell
 # with `go install`
-go install github.com/cybroslabs/hes-1-dbtool/cmd/dbtool@latest
+go install github.com/clbs-io/dbtool/cmd/dbtool@latest
 ```
 
 ### Docker
 
 ```shell
-docker run -v migrations:/migrations registry.clbs.io/dbtool --app-id=your-app --migrations-dir=/migrations --database-url=postgres://user:pass@example.com:5432/db
+docker run -v migrations:/migrations registry.clbs.io/clbs-io/dbtool --app-id=your-app --migrations-dir=/migrations --database-url=postgres://user:pass@example.com:5432/db
 ```
 
 ## Usage
@@ -31,7 +31,7 @@ dbtool \
 ### Usage with Docker
 
 ```dockerfile
-FROM registry.clbs.io/dbtool:v1.0.0 AS dbtool
+FROM registry.clbs.io/clbs-io/dbtool:v1.0.0 AS dbtool
 
 FROM alpine:3.20 AS runtime
 
@@ -48,7 +48,7 @@ CMD [ "ash" ]
 1. Build your own custom image containing the database migrations (SQL files)
 
     ```dockerfile
-    FROM registry.clbs.io/dbtool AS dbtool
+    FROM registry.clbs.io/clbs-io/dbtool AS dbtool
 
     FROM alpine:3.20 AS runtime
 
