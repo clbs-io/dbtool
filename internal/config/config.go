@@ -101,9 +101,21 @@ func connectionStringFromADO(connectionString string) (string, bool) {
 		} else {
 			key = strings.ReplaceAll(key, " ", "")
 		}
+
 		value := strings.TrimSpace(parts[1])
-		if strings.Contains(value, " ") {
-			value = fmt.Sprintf("'%s'", value)
+
+		// ADO.NET supports string values quoted either in single or double quotes. Go pgx does not support double-quoted values.
+		if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+			if len(value) == 2 {
+				value = "''"
+			} else {
+				// Unescape inner double quotes, escape single quotes and add single quotes around the value
+				value = fmt.Sprintf("'%s'",
+					strings.ReplaceAll("'", "\\'",
+						strings.ReplaceAll(value[1:len(value)-2], "\\\"", "\""),
+					),
+				)
+			}
 		}
 
 		sb.WriteString(key)
