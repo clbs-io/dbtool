@@ -12,6 +12,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/clbs-io/dbtool/internal/config"
@@ -115,7 +116,8 @@ func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
 	}
 
 	for _, e := range entry {
-		entryPath := path.Join(subDir, e.Name())
+		entryName := e.Name()
+		entryPath := path.Join(subDir, entryName)
 
 		// depth first
 		if e.IsDir() {
@@ -128,7 +130,12 @@ func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
 		}
 
 		// is file name invalid? -> continue
-		if !isValidFileName(e.Name()) {
+		if !isValidFileName(entryName) {
+			// if the file has a .sql extension, it's strange a probably a mistake
+			if strings.HasSuffix(entryName, ".sql") {
+				return fmt.Errorf("the file name '%s' which has .sql extension contains invalid characters", entryName)
+			}
+			// Non .sql files are just skipped
 			continue
 		}
 
