@@ -1,12 +1,14 @@
 module github.com/clbs-io/dbtool
 
-go 1.22.5
+go 1.23.0
+
+toolchain go1.24.1
 
 require (
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/text v0.22.0
+	golang.org/x/text v0.23.0
 )
 
 require (
