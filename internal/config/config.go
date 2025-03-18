@@ -21,6 +21,7 @@ type Config struct {
 
 	dir                    string
 	connectionString       string
+	connectionStringFile   string
 	connectionStringFormat string
 	steps                  int
 	skipFileValidation     bool
@@ -63,6 +64,7 @@ func load() *Config {
 	flag.StringVar(&cfg.appId, "app-id", "", "Application ID")
 	flag.StringVar(&cfg.dir, "migrations-dir", "", "Root directory where to look for SQL files")
 	flag.StringVar(&cfg.connectionString, "connection-string", "", "Database URL to connect to")
+	flag.StringVar(&cfg.connectionStringFile, "connection-string-file", "", "Path to a file containing database URL to connect to")
 	flag.StringVar(&cfg.connectionStringFormat, "connection-string-format", "default", "Connection string format (default, ado)")
 	flag.IntVar(&cfg.steps, "steps", defaultSteps, "Number of steps to apply")
 	flag.BoolVar(&cfg.skipFileValidation, "skip-file-validation", false, "Skip file validation")
@@ -72,6 +74,13 @@ func load() *Config {
 	if strings.ToLower(cfg.connectionStringFormat) == "ado" {
 		tmp, _ := connectionStringFromADO(cfg.connectionString)
 		cfg.connectionString = tmp
+	}
+	if cfg.connectionStringFile != "" {
+		if _, err := os.Stat(cfg.connectionStringFile); err == nil {
+			if data, err := os.ReadFile(cfg.connectionStringFile); err == nil {
+				cfg.connectionString = strings.TrimSpace(string(data))
+			}
+		}
 	}
 
 	return cfg
