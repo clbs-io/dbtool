@@ -52,7 +52,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 
 	logger.Info("Connecting to database...")
 
-	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 5*time.Second)
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(cfg.ConnectionTimeout())*time.Second)
 	defer timeoutCancel()
 
 	conn, err := pgx.Connect(timeoutCtx, cfg.ConnectionString())

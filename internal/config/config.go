@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	defaultSteps = -1
+	defaultSteps             = -1
+	defaultConnectionTimeout = 45 // Seconds
 )
 
 // Config fields are not exported, making Config immutable
@@ -23,6 +24,7 @@ type Config struct {
 	connectionString       string
 	connectionStringFile   string
 	connectionStringFormat string
+	connectionTimeout      int
 	steps                  int
 	skipFileValidation     bool
 }
@@ -51,6 +53,10 @@ func (cfg *Config) AppId() string {
 	return cfg.appId
 }
 
+func (cfg *Config) ConnectionTimeout() int {
+	return cfg.connectionTimeout
+}
+
 func LoadConfig(version string) (*Config, error) {
 	cfg := load()
 	cfg.version = version
@@ -65,9 +71,10 @@ func load() *Config {
 	flag.StringVar(&cfg.dir, "migrations-dir", "", "Root directory where to look for SQL files")
 	flag.StringVar(&cfg.connectionString, "connection-string", "", "Database URL to connect to")
 	flag.StringVar(&cfg.connectionStringFile, "connection-string-file", "", "Path to a file containing database URL to connect to")
-	flag.StringVar(&cfg.connectionStringFormat, "connection-string-format", "default", "Connection string format (default, ado)")
-	flag.IntVar(&cfg.steps, "steps", defaultSteps, "Number of steps to apply")
-	flag.BoolVar(&cfg.skipFileValidation, "skip-file-validation", false, "Skip file validation")
+	flag.StringVar(&cfg.connectionStringFormat, "connection-string-format", "default", "Connection string format. [default, ado]")
+	flag.IntVar(&cfg.steps, "steps", defaultSteps, "Number of steps to apply (default: -1, apply all migrations)")
+	flag.BoolVar(&cfg.skipFileValidation, "skip-file-validation", false, "Skip file validation (default: false)")
+	flag.IntVar(&cfg.connectionTimeout, "connection-timeout", defaultConnectionTimeout, fmt.Sprintf("Connection timeout in seconds, must be a positive number (default: %d)", defaultConnectionTimeout))
 
 	flag.Parse()
 
@@ -141,6 +148,7 @@ var (
 	ErrInvalidConnectionString    = fmt.Errorf("connection string is invalid")
 	ErrInvalidSteps               = fmt.Errorf("invalid steps: must be positive integer")
 	ErrInvalidAppId               = fmt.Errorf("app-id is required")
+	ErrInvalidConnectionTimeout   = fmt.Errorf("connection timeout must be a positive integer")
 )
 
 func (cfg *Config) validate() error {
@@ -172,6 +180,10 @@ func (cfg *Config) validate() error {
 
 	if cfg.appId == "" {
 		return ErrInvalidAppId
+	}
+
+	if cfg.connectionTimeout <= 0 {
+		return ErrInvalidConnectionTimeout
 	}
 
 	return nil

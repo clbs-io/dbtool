@@ -14,6 +14,7 @@ func TestConfig_ConnectionString(t *testing.T) {
 			connectionString:   "mysql://user:password@localhost:5432/db",
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
+			connectionTimeout:  defaultConnectionTimeout,
 			skipFileValidation: false,
 		}
 
@@ -28,6 +29,7 @@ func TestConfig_ConnectionString(t *testing.T) {
 			connectionString:   "invalid url",
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
+			connectionTimeout:  defaultConnectionTimeout,
 			skipFileValidation: false,
 		}
 
@@ -42,6 +44,7 @@ func TestConfig_ConnectionString(t *testing.T) {
 			connectionString:   "User ID=uid;Password=pass@word;Host=url.example.com;Port=5432;Database=app;SSL Mode=allow",
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
+			connectionTimeout:  defaultConnectionTimeout,
 			skipFileValidation: false,
 		}
 
@@ -56,6 +59,7 @@ func TestConfig_ConnectionString(t *testing.T) {
 			connectionString:   "",
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
+			connectionTimeout:  defaultConnectionTimeout,
 			skipFileValidation: false,
 		}
 
@@ -72,6 +76,7 @@ func TestConfig_Dir(t *testing.T) {
 			connectionString:   "postgres://user:password@localhost:5432/db",
 			dir:                "./some/invalid/path",
 			steps:              defaultSteps,
+			connectionTimeout:  defaultConnectionTimeout,
 			skipFileValidation: false,
 		}
 
@@ -86,6 +91,7 @@ func TestConfig_Dir(t *testing.T) {
 			connectionString:   "postgres://user:password@localhost:5432/db",
 			dir:                "../../testing/samples/exists-but-is-file",
 			steps:              defaultSteps,
+			connectionTimeout:  defaultConnectionTimeout,
 			skipFileValidation: false,
 		}
 
@@ -102,6 +108,7 @@ func TestConfig_Valid(t *testing.T) {
 		connectionString:   "postgres://user:password@localhost:5432/db",
 		dir:                "../../testing/samples/valid",
 		steps:              defaultSteps,
+		connectionTimeout:  defaultConnectionTimeout,
 		skipFileValidation: false,
 	}
 
@@ -116,9 +123,25 @@ func TestConfig_Steps(t *testing.T) {
 		connectionString:   "postgres://user:password@localhost:3306/db",
 		dir:                "../../testing/samples/valid",
 		steps:              1,
+		connectionTimeout:  defaultConnectionTimeout,
 		skipFileValidation: false,
 	}
 
 	err := cfg.validate()
 	assert.NoError(t, err)
+}
+
+func TestConfig_Timeout(t *testing.T) {
+	cfg := Config{
+		version:            "test",
+		appId:              "test",
+		connectionString:   "postgres://user:password@localhost:3306/db",
+		dir:                "../../testing/samples/valid",
+		steps:              defaultSteps,
+		connectionTimeout:  -1,
+		skipFileValidation: false,
+	}
+
+	err := cfg.validate()
+	assert.ErrorIs(t, err, ErrInvalidConnectionTimeout)
 }
