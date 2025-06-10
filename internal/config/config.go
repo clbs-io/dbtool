@@ -110,11 +110,16 @@ func connectionStringFromADO(connectionString string) (string, bool) {
 		}
 
 		key := strings.ToLower(strings.TrimSpace(parts[0]))
-		if key == "database" {
+
+		switch key {
+		case "database":
+			// ADO.NET uses "Database" instead of "dbname"
 			key = "dbname"
-		} else if key == "user id" {
+		case "user id":
+			// ADO.NET uses "User ID" instead of "user"
 			key = "user"
-		} else {
+		default:
+			// Remove spaces from the key as they must not be present in the PostgreSQL connection string
 			key = strings.ReplaceAll(key, " ", "")
 		}
 
