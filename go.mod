@@ -1,8 +1,6 @@
 module github.com/clbs-io/dbtool
 
-go 1.23.0
-
-toolchain go1.24.6
+go 1.24.6
 
 require (
 	github.com/jackc/pgx/v5 v5.7.5
@@ -18,6 +16,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/crypto v0.41.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
