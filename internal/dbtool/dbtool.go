@@ -55,7 +55,11 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(cfg.ConnectionTimeout())*time.Second)
 	defer timeoutCancel()
 
-	conn, err := pgx.Connect(timeoutCtx, cfg.ConnectionString())
+	conn_config, err := pgx.ParseConfig(cfg.ConnectionString())
+	if err != nil {
+		logger.Fatal("Error parsing connection string", zap.Error(err))
+	}
+	conn, err := pgx.ConnectConfig(timeoutCtx, conn_config)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			logger.Fatal("Error connecting to database: timeout")
