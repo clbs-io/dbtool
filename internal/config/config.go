@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -174,7 +174,8 @@ func (cfg *Config) validate() error {
 		return ErrInvalidConnectionString
 	}
 
-	_, err = pgx.ParseConfig(cfg.connectionString)
+	// Validate connection string by parsing it using pgxpool that has more options
+	_, err = pgxpool.ParseConfig(cfg.connectionString)
 	if err != nil {
 		return ErrInvalidConnectionString
 	}

@@ -17,6 +17,7 @@ import (
 
 	"github.com/clbs-io/dbtool/internal/config"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
@@ -55,11 +56,13 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(cfg.ConnectionTimeout())*time.Second)
 	defer timeoutCancel()
 
-	conn_config, err := pgx.ParseConfig(cfg.ConnectionString())
+	// Parse connection string using pgxpool that has more options although we won't use the pool
+	conn_config, err := pgxpool.ParseConfig(cfg.ConnectionString())
 	if err != nil {
 		logger.Fatal("Error parsing connection string", zap.Error(err))
 	}
-	conn, err := pgx.ConnectConfig(timeoutCtx, conn_config)
+
+	conn, err := pgx.ConnectConfig(timeoutCtx, conn_config.ConnConfig)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			logger.Fatal("Error connecting to database: timeout")
