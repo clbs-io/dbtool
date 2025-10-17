@@ -11,7 +11,8 @@ jobs:
       contents: read
       packages: write
 
-    runs-on: self-hosted
+    runs-on:
+      group: ARM64
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     strategy:
       matrix:
