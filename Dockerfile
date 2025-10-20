@@ -5,6 +5,8 @@ ARG VERSION=v0.0.0
 
 WORKDIR /build
 
+RUN apk update && apk add --no-cache git ca-certificates tzdata && update-ca-certificates
+
 COPY go.mod go.sum ./
 
 RUN go mod download
@@ -13,11 +15,13 @@ COPY . .
 
 RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -a -o dbtool -ldflags="-X 'main.Version=$VERSION'" ./cmd/dbtool
 
-FROM alpine:3.22.2 AS dbtool
+FROM scratch AS dbtool
 
-RUN apk --no-cache add ca-certificates && \
-    update-ca-certificates
+WORKDIR /srv
 
 COPY --from=builder /build/dbtool /usr/local/bin/dbtool
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+USER 1001
 
-CMD [ "ash" ]
+CMD [ "/usr/local/bin/dbtool" ]
