@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -64,21 +65,47 @@ func LoadConfig(version string) (*Config, error) {
 	return cfg, err
 }
 
+type flagTypes interface {
+	~int | ~string | ~bool
+}
+
+// getEnvironmentOrDefault retrieves the value of the environment variable named by the key.
+// If the variable is present in the environment the value (of type T) is returned.
+// Otherwise, the provided fallbackValue is returned.
+func getEnvironmentOrDefault[T flagTypes](envVar string, fallbackValue T) T {
+	if value, exists := os.LookupEnv(envVar); exists {
+		var result T
+		switch any(result).(type) {
+		case string:
+			return any(value).(T)
+		case int:
+			if v, err := strconv.Atoi(value); err == nil {
+				return any(v).(T)
+			}
+		case bool:
+			if v, err := strconv.ParseBool(value); err == nil {
+				return any(v).(T)
+			}
+		}
+	}
+	return fallbackValue
+}
+
 func load() *Config {
 	cfg := &Config{}
 
-	flag.StringVar(&cfg.appId, "app-id", "", "Application ID")
-	flag.StringVar(&cfg.dir, "migrations-dir", "", "Root directory where to look for SQL files")
-	flag.StringVar(&cfg.connectionString, "connection-string", "", "Database URL to connect to")
-	flag.StringVar(&cfg.connectionStringFile, "connection-string-file", "", "Path to a file containing database URL to connect to")
-	flag.StringVar(&cfg.connectionStringFormat, "connection-string-format", "default", "Connection string format. [default, ado]")
-	flag.IntVar(&cfg.steps, "steps", defaultSteps, "Number of steps to apply (default: -1, apply all migrations)")
-	flag.BoolVar(&cfg.skipFileValidation, "skip-file-validation", false, "Skip file validation (default: false)")
-	flag.IntVar(&cfg.connectionTimeout, "connection-timeout", defaultConnectionTimeout, fmt.Sprintf("Connection timeout in seconds, must be a positive number (default: %d)", defaultConnectionTimeout))
+	flag.StringVar(&cfg.appId, "app-id", getEnvironmentOrDefault("APP_ID", ""), "Application ID")
+	flag.StringVar(&cfg.dir, "migrations-dir", getEnvironmentOrDefault("MIGRATIONS_DIR", ""), "Root directory where to look for SQL files")
+	flag.StringVar(&cfg.connectionString, "connection-string", getEnvironmentOrDefault("CONNECTION_STRING", ""), "Database URL to connect to")
+	flag.StringVar(&cfg.connectionStringFile, "connection-string-file", getEnvironmentOrDefault("CONNECTION_STRING_FILE", ""), "Path to a file containing database URL to connect to")
+	flag.StringVar(&cfg.connectionStringFormat, "connection-string-format", getEnvironmentOrDefault("CONNECTION_STRING_FORMAT", "default"), "Connection string format. [default, ado]")
+	flag.IntVar(&cfg.steps, "steps", getEnvironmentOrDefault("STEPS", defaultSteps), "Number of steps to apply (default: -1, apply all migrations)")
+	flag.BoolVar(&cfg.skipFileValidation, "skip-file-validation", getEnvironmentOrDefault("SKIP_FILE_VALIDATION", false), "Skip file validation (default: false)")
+	flag.IntVar(&cfg.connectionTimeout, "connection-timeout", getEnvironmentOrDefault("CONNECTION_TIMEOUT", defaultConnectionTimeout), fmt.Sprintf("Connection timeout in seconds, must be a positive number (default: %d)", defaultConnectionTimeout))
 
 	flag.Parse()
 
-	if strings.ToLower(cfg.connectionStringFormat) == "ado" {
+	if strings.EqualFold(cfg.connectionStringFormat, "ado") {
 		tmp, _ := connectionStringFromADO(cfg.connectionString)
 		cfg.connectionString = tmp
 	}
