@@ -58,6 +58,14 @@ func (cfg *Config) ConnectionTimeout() int {
 	return cfg.connectionTimeout
 }
 
+func (cfg *Config) Host() string {
+	tmp, err := pgxpool.ParseConfig(cfg.connectionString)
+	if err != nil || tmp.ConnConfig == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d", tmp.ConnConfig.Host, tmp.ConnConfig.Port)
+}
+
 func LoadConfig(version string) (*Config, error) {
 	cfg := load()
 	cfg.version = version

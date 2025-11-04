@@ -51,7 +51,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		logger.Debug(fmt.Sprintf("- %s", f.path))
 	}
 
-	logger.Info("Connecting to database...")
+	logger.Info(fmt.Sprintf("Connecting to database %s...", cfg.Host()))
 
 	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(cfg.ConnectionTimeout())*time.Second)
 	defer timeoutCancel()
