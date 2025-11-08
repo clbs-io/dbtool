@@ -374,7 +374,7 @@ func readText(reader io.Reader) (string, error) {
 }
 
 func prepareFiles(sqlFiles []sqlFile) {
-	var cache map[string][]string = make(map[string][]string)
+	cache := make(map[string][]string)
 
 	var splitCached = func(s string) []string {
 		if t, ok := cache[s]; ok {
@@ -412,8 +412,8 @@ func prepareFiles(sqlFiles []sqlFile) {
 
 func getLastSnapshot(sqlFiles *[]sqlFile) (bool, string) {
 	// Find last .snapshot
-	var lastSnapshotIndex int = -1
-	var lastSnapshotDir string = ""
+	lastSnapshotIndex := -1
+	lastSnapshotDir := ""
 	for idx := len(*sqlFiles) - 1; idx >= 0; idx-- {
 		sqlfile := (*sqlFiles)[idx]
 		if sqlfile.isSnapshot {
@@ -427,7 +427,6 @@ func getLastSnapshot(sqlFiles *[]sqlFile) (bool, string) {
 			break
 		}
 	}
-	_ = lastSnapshotIndex
 
 	// Remove files before the last snapshot
 	if lastSnapshotIndex != -1 {
