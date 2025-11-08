@@ -11,7 +11,7 @@ import (
 	"os"
 	"path"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,6 +32,14 @@ var (
 	reFilename = regexp.MustCompile(`^[a-z0-9]+[a-z0-9-_]*.sql$`)
 )
 
+type fileType int
+
+const (
+	fileTypeUnknown  fileType = iota
+	fileTypeSql      fileType = iota
+	fileTypeSnapshot fileType = iota
+)
+
 func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 	logger.Info("Looking for SQL files", zap.String("dir", cfg.Dir()))
 
@@ -42,9 +50,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		logger.Fatal("Error reading dir", zap.Error(err))
 	}
 
-	sort.Slice(sqlFiles, func(i, j int) bool {
-		return sqlFiles[i].path < sqlFiles[j].path
-	})
+	prepareFiles(sqlFiles)
 
 	logger.Debug("Found matching SQL files:")
 	for _, f := range sqlFiles {
@@ -90,6 +96,15 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		logger.Fatal("Error ensuring migration table exists", zap.Error(err))
 	}
 
+	// Detect which migrations need to be applied
+	if initialState, err := isInitialState(*conn, cfg); err != nil {
+		logger.Fatal("Error checking initial state", zap.Error(err))
+	} else if initialState {
+		if detect, dir := getLastSnapshot(&sqlFiles); detect {
+			logger.Info("The last snapshot detected, skipping migrations before folder " + dir)
+		}
+	}
+
 	err = prepareListOfMigrations(*conn, sqlFiles, cfg)
 	if err != nil {
 		logger.Fatal("Error preparing list of migrations", zap.Error(err))
@@ -109,18 +124,24 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 }
 
 type sqlFile struct {
-	path  string
-	hash  string
-	apply bool
+	path       string
+	hash       string
+	apply      bool
+	isSnapshot bool
 }
 
 // readDir reads the directory recursively and appends all SQL files to the sqlFiles slice
-func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
+func readDir(files *[]sqlFile, rootDir string, subDir string) error {
 	currentDir := path.Join(rootDir, subDir)
 	entry, err := os.ReadDir(currentDir)
 	if err != nil {
 		return err
 	}
+
+	allow_snapshot_tag := len(strings.Split(subDir, string(os.PathSeparator))) == 1
+
+	var is_snapshot bool
+	var local_files []sqlFile
 
 	for _, e := range entry {
 		entryName := e.Name()
@@ -128,7 +149,7 @@ func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
 
 		// depth first
 		if e.IsDir() {
-			err := readDir(sqlFiles, rootDir, entryPath)
+			err := readDir(&local_files, rootDir, entryPath)
 			if err != nil {
 				return err
 			}
@@ -136,14 +157,25 @@ func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
 			continue
 		}
 
-		// is file name invalid? -> continue
-		if !isValidFileName(entryName) {
+		file_type := getFileType(entryName)
+
+		switch file_type {
+		case fileTypeUnknown:
 			// if the file has a .sql extension, it's strange a probably a mistake
 			if strings.HasSuffix(entryName, ".sql") {
 				return fmt.Errorf("the file name '%s' which has .sql extension contains invalid characters", entryName)
 			}
 			// Non .sql files are just skipped
 			continue
+
+		case fileTypeSnapshot:
+			if !allow_snapshot_tag {
+				return fmt.Errorf(".snapshot file can only be placed in the first level directory, invalid location: %s", entryPath)
+			}
+			is_snapshot = true
+			continue
+
+		case fileTypeSql:
 		}
 
 		fileHash, err := getFileHash(path.Join(rootDir, entryPath))
@@ -151,17 +183,31 @@ func readDir(sqlFiles *[]sqlFile, rootDir string, subDir string) error {
 			return err
 		}
 
-		*sqlFiles = append(*sqlFiles, sqlFile{path: entryPath, hash: fileHash,
+		local_files = append(local_files, sqlFile{path: entryPath, hash: fileHash,
 			apply: false,
 		})
 	}
+
+	if is_snapshot {
+		for idx := range local_files {
+			local_files[idx].isSnapshot = true
+		}
+	}
+
+	*files = append(*files, local_files...)
 
 	return nil
 }
 
 // isValidFileName checks if the file name is valid
-func isValidFileName(name string) bool {
-	return reFilename.MatchString(name)
+func getFileType(name string) fileType {
+	if reFilename.MatchString(name) {
+		return fileTypeSql
+	}
+	if name == ".snapshot" {
+		return fileTypeSnapshot
+	}
+	return fileTypeUnknown
 }
 
 // getFileHash returns the sha256 checksum of the file
@@ -205,6 +251,15 @@ func ensureMigrationTableExists(conn pgx.Conn) error {
 	}
 
 	return nil
+}
+
+func isInitialState(conn pgx.Conn, cfg *config.Config) (bool, error) {
+	query := `SELECT 1 FROM public.clbs_dbtool_migrations WHERE app_id = $1`
+	err := conn.QueryRow(context.Background(), query, cfg.AppId()).Scan(nil)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return true, nil
+	}
+	return false, err
 }
 
 func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config) error {
@@ -316,4 +371,68 @@ func readText(reader io.Reader) (string, error) {
 		return "", err
 	}
 	return tmp.String(), nil
+}
+
+func prepareFiles(sqlFiles []sqlFile) {
+	var cache map[string][]string = make(map[string][]string)
+
+	var splitCached = func(s string) []string {
+		if t, ok := cache[s]; ok {
+			return t
+		} else {
+			t := strings.Split(s, string(os.PathSeparator))
+			cache[s] = t
+			return t
+		}
+	}
+
+	slices.SortFunc(sqlFiles, func(a, b sqlFile) int {
+		si := splitCached(a.path)
+		sj := splitCached(b.path)
+		li := len(si)
+		lj := len(sj)
+
+		minLen := min(li-1, lj-1)
+		if minLen > 0 {
+			for k := range li {
+				c := strings.Compare(si[k], sj[k])
+				if c != 0 {
+					return c
+				}
+			}
+		}
+
+		if li == lj {
+			return strings.Compare(si[li-1], sj[lj-1])
+		} else {
+			return lj - li
+		}
+	})
+}
+
+func getLastSnapshot(sqlFiles *[]sqlFile) (bool, string) {
+	// Find last .snapshot
+	var lastSnapshotIndex int = -1
+	var lastSnapshotDir string = ""
+	for idx := len(*sqlFiles) - 1; idx >= 0; idx-- {
+		sqlfile := (*sqlFiles)[idx]
+		if sqlfile.isSnapshot {
+			if lastSnapshotIndex == -1 {
+				lastSnapshotDir = strings.SplitN(sqlfile.path, string(os.PathSeparator), 2)[0] + string(os.PathSeparator)
+			} else if !strings.HasPrefix(sqlfile.path, lastSnapshotDir) {
+				break
+			}
+			lastSnapshotIndex = idx
+		} else if lastSnapshotIndex > -1 {
+			break
+		}
+	}
+	_ = lastSnapshotIndex
+
+	// Remove files before the last snapshot
+	if lastSnapshotIndex != -1 {
+		*sqlFiles = (*sqlFiles)[lastSnapshotIndex:]
+		return true, lastSnapshotDir
+	}
+	return false, ""
 }
