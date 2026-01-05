@@ -7,30 +7,32 @@ on:
 
 jobs:
   build:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
     permissions:
       contents: read
       packages: write
 
-    runs-on: self-hosted
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     strategy:
       matrix:
         target: [dbtool]
 
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.head_ref }} # checkout the correct branch name
+          ref: ${{ github.head_ref }}
           fetch-tags: true
 
-      - id: set-env
+      - name: Set version
+        id: set-env
         run: echo "version=`echo $(git describe --tags --abbrev=0 --exact-match || echo 'v0.0.0')`" >> $GITHUB_OUTPUT
 
-      - name: setup qemu
+      - name: Setup QEMU
         uses: docker/setup-qemu-action@v3
 
-      - name: setup docker
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
@@ -40,9 +42,9 @@ jobs:
           username: ${{ secrets.CONTAINER_REGISTRY_USER }}
           password: ${{ secrets.CONTAINER_REGISTRY_PASS }}
 
-      - name: docker metadata
-        uses: docker/metadata-action@v5
+      - name: Docker metadata
         id: meta
+        uses: docker/metadata-action@v5
         with:
           images: |
             ${{ secrets.CONTAINER_REGISTRY }}/${{ github.repository }}/${{ matrix.target }}
@@ -52,7 +54,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
             type=raw,value=${{ steps.set-env.outputs.version }}
 
-      - name: build and push
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
