@@ -22,7 +22,7 @@ docker run -v migrations:/migrations registry.clbs.io/clbs-io/dbtool --app-id=yo
 ```shell
 # or go run ./cmd/dbtool
 dbtool \
-    --migration-dir ./some/path/to/migrations \
+    --migrations-dir ./some/path/to/migrations \
     --connection-string postgres://user:password@localhost:5432/dbname \
     --steps 1 \
     --skip-file-validation
