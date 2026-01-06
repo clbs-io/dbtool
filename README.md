@@ -230,7 +230,7 @@ Migration files should be SQL files stored in a directory structure. The tool wi
 
 ## About
 
-This project is part of the [clbs.io](https://clbs.io) initiative - a public-source-code brand by [Cybros Labs](https://www.cybroslabs.com/en/contact).
+This project is part of the [clbs.io](https://clbs.io) initiative - a public-source-code brand by [cybros labs](https://www.cybroslabs.com).
 
 ## License
 
