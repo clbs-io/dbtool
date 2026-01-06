@@ -1,4 +1,4 @@
-name: Test
+name: Quality Checks
 
 on:
   pull_request:
@@ -11,7 +11,27 @@ on:
       - "*"
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+
   test:
+    name: Test
     runs-on: ubuntu-latest
 
     steps:
