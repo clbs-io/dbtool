@@ -204,11 +204,9 @@ func TestConnectionStringFromADO(t *testing.T) {
 		ado := `User ID="my user";Password="my password";Database="mydb"`
 		result, ok := connectionStringFromADO(ado)
 		assert.True(t, ok)
-		// Note: There's a bug in the implementation - it has reversed parameters in ReplaceAll
-		// The actual output is malformed, but testing what it actually produces
-		assert.Contains(t, result, "user=")
-		assert.Contains(t, result, "password=")
-		assert.Contains(t, result, "dbname=")
+		assert.Contains(t, result, "user='my user'")
+		assert.Contains(t, result, "password='my password'")
+		assert.Contains(t, result, "dbname='mydb'")
 	})
 
 	t.Run("ADO with empty double-quoted value", func(t *testing.T) {

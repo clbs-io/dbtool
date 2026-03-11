@@ -5,6 +5,7 @@
 package config
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -133,10 +134,8 @@ func load() *Config {
 }
 
 func connectionStringFromADO(connectionString string) (string, bool) {
-	// Split the string by semicolons
-	entries := strings.Split(connectionString, ";")
 	var sb strings.Builder
-	for _, entry := range entries {
+	for entry := range strings.SplitSeq(connectionString, ";") {
 		// Skip empty entries (in case of trailing or multiple semicolons)
 		if len(strings.TrimSpace(entry)) == 0 {
 			continue
@@ -170,11 +169,10 @@ func connectionStringFromADO(connectionString string) (string, bool) {
 				value = "''"
 			} else {
 				// Unescape inner double quotes, escape single quotes and add single quotes around the value
-				value = fmt.Sprintf("'%s'",
-					strings.ReplaceAll("'", "\\'",
-						strings.ReplaceAll(value[1:len(value)-2], "\\\"", "\""),
-					),
-				)
+				inner := value[1 : len(value)-1]
+				inner = strings.ReplaceAll(inner, "\\\"", "\"")
+				inner = strings.ReplaceAll(inner, "'", "\\'")
+				value = fmt.Sprintf("'%s'", inner)
 			}
 		}
 
@@ -188,11 +186,11 @@ func connectionStringFromADO(connectionString string) (string, bool) {
 }
 
 var (
-	ErrInvalidMigrationsDirectory = fmt.Errorf("invalid migrations directory path")
-	ErrInvalidConnectionString    = fmt.Errorf("connection string is invalid")
-	ErrInvalidSteps               = fmt.Errorf("invalid steps: must be positive integer")
-	ErrInvalidAppId               = fmt.Errorf("app-id is required")
-	ErrInvalidConnectionTimeout   = fmt.Errorf("connection timeout must be a positive integer")
+	ErrInvalidMigrationsDirectory = errors.New("invalid migrations directory path")
+	ErrInvalidConnectionString    = errors.New("connection string is invalid")
+	ErrInvalidSteps               = errors.New("invalid steps: must be positive integer")
+	ErrInvalidAppId               = errors.New("app-id is required")
+	ErrInvalidConnectionTimeout   = errors.New("connection timeout must be a positive integer")
 )
 
 func (cfg *Config) validate() error {
