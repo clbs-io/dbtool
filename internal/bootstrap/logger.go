@@ -5,8 +5,9 @@
 package bootstrap
 
 import (
-	"go.uber.org/zap"
 	"os"
+
+	"go.uber.org/zap"
 )
 
 func Logger() *zap.Logger {

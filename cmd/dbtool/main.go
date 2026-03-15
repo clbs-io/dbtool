@@ -10,23 +10,22 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.uber.org/zap"
+
 	"github.com/clbs-io/dbtool/internal/bootstrap"
 	"github.com/clbs-io/dbtool/internal/config"
 	"github.com/clbs-io/dbtool/internal/dbtool"
-	"go.uber.org/zap"
 )
 
-var (
-	Version = "dev"
-)
+var Version = "dev"
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	zap_logger := bootstrap.Logger()
-	defer func() { _ = zap_logger.Sync() }()
-	logger := zap_logger.Sugar()
+	zapLogger := bootstrap.Logger()
+	defer func() { _ = zapLogger.Sync() }()
+	logger := zapLogger.Sugar()
 
 	logger.Infof("Starting clbs-dbtool %v...", Version)
 
@@ -37,5 +36,5 @@ func main() {
 		logger.Fatal("Error loading config", zap.Error(err))
 	}
 
-	dbtool.Run(ctx, zap_logger, cfg)
+	dbtool.Run(ctx, zapLogger, cfg)
 }

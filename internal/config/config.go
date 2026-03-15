@@ -72,9 +72,12 @@ func (cfg *Config) Host() string {
 }
 
 func LoadConfig(version string) (*Config, error) {
-	cfg := load()
+	cfg, err := load()
+	if err != nil {
+		return nil, err
+	}
 	cfg.version = version
-	err := cfg.validate()
+	err = cfg.validate()
 	return cfg, err
 }
 
@@ -104,7 +107,12 @@ func getEnvironmentOrDefault[T flagTypes](envVar string, fallbackValue T) T {
 	return fallbackValue
 }
 
-func load() *Config {
+var (
+	ErrInvalidADOConnectionString    = errors.New("failed to parse ADO connection string")
+	ErrConnectionStringFileReadError = errors.New("failed to read connection string file")
+)
+
+func load() (*Config, error) {
 	cfg := &Config{}
 
 	flag.StringVar(&cfg.appId, "app-id", getEnvironmentOrDefault("APP_ID", ""), "Application ID")
@@ -119,21 +127,24 @@ func load() *Config {
 	flag.Parse()
 
 	if strings.EqualFold(cfg.connectionStringFormat, "ado") {
-		tmp, _ := connectionStringFromADO(cfg.connectionString)
+		tmp, err := connectionStringFromADO(cfg.connectionString)
+		if err != nil {
+			return nil, err
+		}
 		cfg.connectionString = tmp
 	}
 	if cfg.connectionStringFile != "" {
-		if _, err := os.Stat(cfg.connectionStringFile); err == nil {
-			if data, err := os.ReadFile(cfg.connectionStringFile); err == nil {
-				cfg.connectionString = strings.TrimSpace(string(data))
-			}
+		data, err := os.ReadFile(cfg.connectionStringFile)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %s", ErrConnectionStringFileReadError, err)
 		}
+		cfg.connectionString = strings.TrimSpace(string(data))
 	}
 
-	return cfg
+	return cfg, nil
 }
 
-func connectionStringFromADO(connectionString string) (string, bool) {
+func connectionStringFromADO(connectionString string) (string, error) {
 	var sb strings.Builder
 	for entry := range strings.SplitSeq(connectionString, ";") {
 		// Skip empty entries (in case of trailing or multiple semicolons)
@@ -144,7 +155,7 @@ func connectionStringFromADO(connectionString string) (string, bool) {
 		// Split key-value pairs
 		parts := strings.SplitN(entry, "=", 2)
 		if len(parts) != 2 {
-			return "", false
+			return "", ErrInvalidADOConnectionString
 		}
 
 		key := strings.ToLower(strings.TrimSpace(parts[0]))
@@ -182,7 +193,7 @@ func connectionStringFromADO(connectionString string) (string, bool) {
 		sb.WriteString(" ")
 	}
 
-	return strings.TrimSpace(sb.String()), true
+	return strings.TrimSpace(sb.String()), nil
 }
 
 var (

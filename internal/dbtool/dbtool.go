@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -39,9 +39,9 @@ var (
 type fileType int
 
 const (
-	fileTypeUnknown  fileType = iota
-	fileTypeSql      fileType = iota
-	fileTypeSnapshot fileType = iota
+	fileTypeUnknown fileType = iota
+	fileTypeSql
+	fileTypeSnapshot
 )
 
 func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
@@ -67,12 +67,12 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 	defer timeoutCancel()
 
 	// Parse connection string using pgxpool that has more options although we won't use the pool
-	conn_config, err := pgxpool.ParseConfig(cfg.ConnectionString())
+	connConfig, err := pgxpool.ParseConfig(cfg.ConnectionString())
 	if err != nil {
 		logger.Fatal("Error parsing connection string", zap.Error(err))
 	}
 
-	conn, err := pgx.ConnectConfig(timeoutCtx, conn_config.ConnConfig)
+	conn, err := pgx.ConnectConfig(timeoutCtx, connConfig.ConnConfig)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			logger.Fatal("Error connecting to database: timeout")
@@ -95,13 +95,13 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 
 	logger.Info("Ensuring migration table exists...")
 
-	err = ensureMigrationTableExists(*conn)
+	err = ensureMigrationTableExists(ctx, *conn)
 	if err != nil {
 		logger.Fatal("Error ensuring migration table exists", zap.Error(err))
 	}
 
 	// Detect which migrations need to be applied
-	if initialState, err := isInitialState(*conn, cfg); err != nil {
+	if initialState, err := isInitialState(ctx, *conn, cfg); err != nil {
 		logger.Fatal("Error checking initial state", zap.Error(err))
 	} else if initialState {
 		if detect, dir := getLastSnapshot(&sqlFiles); detect {
@@ -109,7 +109,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		}
 	}
 
-	err = prepareListOfMigrations(*conn, sqlFiles, cfg)
+	err = prepareListOfMigrations(ctx, *conn, sqlFiles, cfg)
 	if err != nil {
 		logger.Fatal("Error preparing list of migrations", zap.Error(err))
 	}
@@ -122,7 +122,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		logger.Debug(fmt.Sprintf("- %s", f.path))
 	}
 
-	applyMigrations(conn, cfg.Dir(), sqlFiles, cfg, logger)
+	applyMigrations(ctx, conn, cfg.Dir(), sqlFiles, cfg, logger)
 
 	logger.Info("clbs-dbtool finished")
 }
@@ -136,24 +136,24 @@ type sqlFile struct {
 
 // readDir reads the directory recursively and appends all SQL files to the sqlFiles slice
 func readDir(files *[]sqlFile, rootDir string, subDir string) error {
-	currentDir := path.Join(rootDir, subDir)
+	currentDir := filepath.Join(rootDir, subDir)
 	entry, err := os.ReadDir(currentDir)
 	if err != nil {
 		return err
 	}
 
-	allow_snapshot_tag := len(strings.Split(subDir, string(os.PathSeparator))) == 1
+	allowSnapshotTag := len(strings.Split(subDir, string(os.PathSeparator))) == 1
 
-	var is_snapshot bool
-	var local_files []sqlFile
+	var isSnapshot bool
+	var localFiles []sqlFile
 
 	for _, e := range entry {
 		entryName := e.Name()
-		entryPath := path.Join(subDir, entryName)
+		entryPath := filepath.Join(subDir, entryName)
 
 		// depth first
 		if e.IsDir() {
-			err := readDir(&local_files, rootDir, entryPath)
+			err := readDir(&localFiles, rootDir, entryPath)
 			if err != nil {
 				return err
 			}
@@ -161,9 +161,9 @@ func readDir(files *[]sqlFile, rootDir string, subDir string) error {
 			continue
 		}
 
-		file_type := getFileType(entryName)
+		fileType := getFileType(entryName)
 
-		switch file_type {
+		switch fileType {
 		case fileTypeUnknown:
 			// if the file has a .sql extension, it's strange a probably a mistake
 			if strings.HasSuffix(entryName, ".sql") {
@@ -173,32 +173,32 @@ func readDir(files *[]sqlFile, rootDir string, subDir string) error {
 			continue
 
 		case fileTypeSnapshot:
-			if !allow_snapshot_tag {
+			if !allowSnapshotTag {
 				return fmt.Errorf(".snapshot file can only be placed in the first level directory, invalid location: %s", entryPath)
 			}
-			is_snapshot = true
+			isSnapshot = true
 			continue
 
 		case fileTypeSql:
 		}
 
-		fileHash, err := getFileHash(path.Join(rootDir, entryPath))
+		fileHash, err := getFileHash(filepath.Join(rootDir, entryPath))
 		if err != nil {
 			return err
 		}
 
-		local_files = append(local_files, sqlFile{path: entryPath, hash: fileHash,
+		localFiles = append(localFiles, sqlFile{path: entryPath, hash: fileHash,
 			apply: false,
 		})
 	}
 
-	if is_snapshot {
-		for idx := range local_files {
-			local_files[idx].isSnapshot = true
+	if isSnapshot {
+		for idx := range localFiles {
+			localFiles[idx].isSnapshot = true
 		}
 	}
 
-	*files = append(*files, local_files...)
+	*files = append(*files, localFiles...)
 
 	return nil
 }
@@ -216,29 +216,21 @@ func getFileType(name string) fileType {
 
 // getFileHash returns the sha256 checksum of the file
 func getFileHash(path string) (string, error) {
-	h := sha256.New()
-
 	f, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
+	defer func() { _ = f.Close() }()
 
-	_, err = io.Copy(h, f)
-	if err != nil {
+	h := sha256.New()
+	if _, err = io.Copy(h, f); err != nil {
 		return "", err
 	}
 
-	checksum := hex.EncodeToString(h.Sum(nil))
-
-	err = f.Close()
-	if err != nil {
-		return "", err
-	}
-
-	return checksum, nil
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func ensureMigrationTableExists(conn pgx.Conn) error {
+func ensureMigrationTableExists(ctx context.Context, conn pgx.Conn) error {
 	createTableSQL := `
 		CREATE TABLE IF NOT EXISTS public.clbs_dbtool_migrations (
 			id BIGSERIAL PRIMARY KEY,
@@ -249,24 +241,20 @@ func ensureMigrationTableExists(conn pgx.Conn) error {
 			clbs_dbtool_version VARCHAR(10) NOT NULL
 		)`
 
-	_, err := conn.Exec(context.Background(), createTableSQL)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := conn.Exec(ctx, createTableSQL)
+	return err
 }
 
-func isInitialState(conn pgx.Conn, cfg *config.Config) (bool, error) {
+func isInitialState(ctx context.Context, conn pgx.Conn, cfg *config.Config) (bool, error) {
 	query := `SELECT 1 FROM public.clbs_dbtool_migrations WHERE app_id = $1`
-	err := conn.QueryRow(context.Background(), query, cfg.AppId()).Scan(nil)
+	err := conn.QueryRow(ctx, query, cfg.AppId()).Scan(nil)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return true, nil
 	}
 	return false, err
 }
 
-func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config) error {
+func prepareListOfMigrations(ctx context.Context, conn pgx.Conn, files []sqlFile, cfg *config.Config) error {
 	type migration struct {
 		filePath string
 		fileHash string
@@ -275,35 +263,27 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 	//goland:noinspection SqlResolve
 	selectMigrationsSQL := `SELECT file_path, file_hash FROM public.clbs_dbtool_migrations WHERE app_id = $1 ORDER BY id ASC`
 
-	rows, err := conn.Query(context.Background(), selectMigrationsSQL, cfg.AppId())
+	rows, err := conn.Query(ctx, selectMigrationsSQL, cfg.AppId())
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
-	appliedMigrations := make([]migration, 0)
-
-	for rows.Next() {
+	appliedMigrations, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (migration, error) {
 		var m migration
-		scanErr := rows.Scan(&m.filePath, &m.fileHash)
-		if scanErr != nil {
-			return scanErr
-		}
-
-		appliedMigrations = append(appliedMigrations, m)
+		err := row.Scan(&m.filePath, &m.fileHash)
+		return m, err
+	})
+	if err != nil {
+		return err
 	}
 
-	appliedMigrationsChan := make(chan migration, len(appliedMigrations))
-	defer close(appliedMigrationsChan)
-
-	for _, m := range appliedMigrations {
-		appliedMigrationsChan <- m
-	}
-
+	appliedIdx := 0
 	toBeApplied := 0
 	for idx, f := range files {
-		select {
-		case m := <-appliedMigrationsChan:
+		if appliedIdx < len(appliedMigrations) {
+			m := appliedMigrations[appliedIdx]
+			appliedIdx++
+
 			if m.filePath != f.path {
 				return fmt.Errorf("file %s has been moved since applied, %s", f.path, m.filePath)
 			}
@@ -318,7 +298,6 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 
 			// if migration has already been applied, continue
 			continue
-		default:
 		}
 
 		if toBeApplied == cfg.Steps() {
@@ -332,7 +311,7 @@ func prepareListOfMigrations(conn pgx.Conn, files []sqlFile, cfg *config.Config)
 	return nil
 }
 
-func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile, cfg *config.Config, logger *zap.Logger) {
+func applyMigrations(ctx context.Context, conn *pgx.Conn, rootDir string, files []sqlFile, cfg *config.Config, logger *zap.Logger) {
 	//goland:noinspection SqlResolve
 	insertExecutedMigrationSQL := `INSERT INTO public.clbs_dbtool_migrations (file_path, file_hash, app_id, clbs_dbtool_version) VALUES ($1, $2, $3, $4)`
 
@@ -343,22 +322,23 @@ func applyMigrations(conn *pgx.Conn, rootDir string, files []sqlFile, cfg *confi
 
 		logger.Info("Running migration...", zap.String("file", f.path))
 
-		fd, err := os.Open(path.Join(rootDir, f.path))
+		fd, err := os.Open(filepath.Join(rootDir, f.path))
 		if err != nil {
 			logger.Fatal("Could not open migration file", zap.Error(err))
 		}
 
 		sql, err := readText(fd)
+		_ = fd.Close()
 		if err != nil {
 			logger.Fatal("Could not read text from migration file", zap.Error(err))
 		}
 
-		_, err = conn.Exec(context.Background(), sql)
+		_, err = conn.Exec(ctx, sql)
 		if err != nil {
 			logger.Fatal("Error while executing migration", zap.Error(err))
 		}
 
-		_, err = conn.Exec(context.Background(), insertExecutedMigrationSQL, f.path, f.hash, cfg.AppId(), cfg.Version())
+		_, err = conn.Exec(ctx, insertExecutedMigrationSQL, f.path, f.hash, cfg.AppId(), cfg.Version())
 		if err != nil {
 			logger.Fatal("Error while updating dbtool migrations table, this may lead to inconsistent database state", zap.Error(err))
 		}
@@ -380,14 +360,13 @@ func readText(reader io.Reader) (string, error) {
 func prepareFiles(sqlFiles []sqlFile) {
 	cache := make(map[string][]string)
 
-	var splitCached = func(s string) []string {
+	splitCached := func(s string) []string {
 		if t, ok := cache[s]; ok {
 			return t
-		} else {
-			t := strings.Split(s, string(os.PathSeparator))
-			cache[s] = t
-			return t
 		}
+		t := strings.Split(s, string(os.PathSeparator))
+		cache[s] = t
+		return t
 	}
 
 	slices.SortFunc(sqlFiles, func(a, b sqlFile) int {
@@ -396,21 +375,16 @@ func prepareFiles(sqlFiles []sqlFile) {
 		li := len(si)
 		lj := len(sj)
 
-		minLen := min(li-1, lj-1)
-		if minLen > 0 {
-			for k := range li {
-				c := strings.Compare(si[k], sj[k])
-				if c != 0 {
-					return c
-				}
+		commonLen := min(li, lj)
+		for k := range commonLen {
+			c := strings.Compare(si[k], sj[k])
+			if c != 0 {
+				return c
 			}
 		}
 
-		if li == lj {
-			return strings.Compare(si[li-1], sj[lj-1])
-		} else {
-			return lj - li
-		}
+		// All common segments equal — deeper path comes first
+		return lj - li
 	})
 }
 
@@ -418,8 +392,7 @@ func getLastSnapshot(sqlFiles *[]sqlFile) (bool, string) {
 	// Find last .snapshot
 	lastSnapshotIndex := -1
 	lastSnapshotDir := ""
-	for idx := len(*sqlFiles) - 1; idx >= 0; idx-- {
-		sqlfile := (*sqlFiles)[idx]
+	for idx, sqlfile := range slices.Backward(*sqlFiles) {
 		if sqlfile.isSnapshot {
 			if lastSnapshotIndex == -1 {
 				lastSnapshotDir = strings.SplitN(sqlfile.path, string(os.PathSeparator), 2)[0] + string(os.PathSeparator)
