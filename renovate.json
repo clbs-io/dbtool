@@ -1,21 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>clbs-io/renovate-config"
-  ],
-  "postUpdateOptions": [
-    "gomodTidy"
-  ],
-  "automerge": true,
-  "automergeStrategy": "rebase",
-  "automergeType": "pr",
-  "lockFileMaintenance": {
-    "automerge": true
-  },
-  "minor": {
-    "automerge": true
-  },
-  "patch": {
-    "automerge": true
-  }
+    "local>clbs-io/renovate-config:base",
+    "local>clbs-io/renovate-config:go"
+  ]
 }
