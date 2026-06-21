@@ -72,6 +72,15 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config.Config) {
 		logger.Fatal("Error parsing connection string", zap.Error(err))
 	}
 
+	// Default the PostgreSQL application_name when not provided via PGAPPNAME or
+	// the connection string, so backends are identifiable in pg_stat_activity.
+	if connConfig.ConnConfig.RuntimeParams == nil {
+		connConfig.ConnConfig.RuntimeParams = map[string]string{}
+	}
+	if connConfig.ConnConfig.RuntimeParams["application_name"] == "" {
+		connConfig.ConnConfig.RuntimeParams["application_name"] = "cybros labs DB tool"
+	}
+
 	conn, err := pgx.ConnectConfig(timeoutCtx, connConfig.ConnConfig)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
