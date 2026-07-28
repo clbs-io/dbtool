@@ -26,11 +26,14 @@ COPY . .
 # Scanned before the build so only the go.mod cataloger runs: a compiled binary in the
 # context makes syft also run the binary cataloger, which re-lists every module without
 # licence data and duplicates the whole component set.
-# Only the .spdx.json suffix is auto-detected by Trivy and Grype; the CycloneDX copy keeps
-# an inert name so scanners do not count every component twice.
+# CycloneDX carries the scanner-detectable .cdx.json name: Trivy reads licences straight
+# from it, whereas in SPDX syft records detected licences under licenseConcluded and Trivy
+# reads only licenseDeclared, so an SPDX scan reports every component as NOASSERTION.
+# SPDX is still shipped for SPDX-native tooling, under a name no scanner auto-detects so
+# the same components are not counted twice.
 RUN syft scan . -q --exclude "**/.*/**" \
-      -o "spdx-json=/build/sbom/dbtool.spdx.json" \
-      -o "cyclonedx-json=/build/sbom/dbtool.cyclonedx-json"
+      -o "cyclonedx-json=/build/sbom/dbtool.cdx.json" \
+      -o "spdx-json=/build/sbom/dbtool.spdx-json"
 
 RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -a -o dbtool -ldflags="-X 'main.Version=$VERSION'" ./cmd/dbtool
 
