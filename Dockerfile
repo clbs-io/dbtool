@@ -31,7 +31,7 @@ COPY . .
 # reads only licenseDeclared, so an SPDX scan reports every component as NOASSERTION.
 # SPDX is still shipped for SPDX-native tooling, under a name no scanner auto-detects so
 # the same components are not counted twice.
-RUN syft scan . -q --exclude "**/.*/**" \
+RUN syft scan . -q --exclude "**/.*/**" --source-name dbtool --source-version "$VERSION" \
       -o "cyclonedx-json=/build/sbom/dbtool.cdx.json" \
       -o "spdx-json=/build/sbom/dbtool.spdx-json"
 
