@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # renovate: datasource=docker depName=anchore/syft
-FROM --platform=$BUILDPLATFORM anchore/syft:v1.50.0 AS syft
+FROM --platform=$BUILDPLATFORM anchore/syft:v1.51.1 AS syft
 
 FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine AS builder
 ARG TARGETOS TARGETARCH
