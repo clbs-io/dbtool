@@ -42,17 +42,21 @@ func TestConfig_ConnectionString(t *testing.T) {
 	})
 
 	t.Run("ConnectionString key value", func(t *testing.T) {
+		// This is ADO key value format so it has to be converted to a valid connection string before validation
+		result, err := connectionStringFromADO("User ID=uid;Password=pass@word;Host=url.example.com;Port=5432;Database=app;SSL Mode=allow")
+		assert.NoError(t, err)
+
 		cfg := Config{
 			version:            "test",
 			appId:              "test",
-			connectionString:   "User ID=uid;Password=pass@word;Host=url.example.com;Port=5432;Database=app;SSL Mode=allow",
+			connectionString:   result,
 			dir:                "../../testing/samples/valid",
 			steps:              defaultSteps,
 			connectionTimeout:  defaultConnectionTimeout,
 			skipFileValidation: false,
 		}
 
-		err := cfg.validate()
+		err = cfg.validate()
 		assert.NoError(t, err)
 	})
 
