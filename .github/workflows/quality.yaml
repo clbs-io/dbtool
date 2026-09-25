@@ -30,6 +30,29 @@ jobs:
         with:
           version: latest
 
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Run gosec
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          args: --enable-only gosec --tests=false --max-issues-per-linter=0 --max-same-issues=0
+
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
   test:
     name: Test
     runs-on: ubuntu-latest

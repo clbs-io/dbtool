@@ -225,7 +225,7 @@ func getFileType(name string) fileType {
 
 // getFileHash returns the sha256 checksum of the file
 func getFileHash(path string) (string, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: path comes from walking the operator-configured migrations directory
 	if err != nil {
 		return "", err
 	}
@@ -331,7 +331,7 @@ func applyMigrations(ctx context.Context, conn *pgx.Conn, rootDir string, files 
 
 		logger.Info("Running migration...", zap.String("file", f.path))
 
-		fd, err := os.Open(filepath.Join(rootDir, f.path))
+		fd, err := os.Open(filepath.Join(rootDir, f.path)) //nolint:gosec // G304: path comes from walking the operator-configured migrations directory
 		if err != nil {
 			logger.Fatal("Could not open migration file", zap.Error(err))
 		}
